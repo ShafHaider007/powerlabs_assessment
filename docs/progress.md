@@ -7,9 +7,9 @@ One entry per step. Each entry covers what was done, outputs, decisions and why,
 | 1. Load data, then elevation, slope, aspect | ✅ Done |
 | 2. Clean noise, fill missing data | ✅ Done |
 | 3. Roof face segmentation and plane fitting | ✅ Done |
-| 4. Obstruction detection | ✅ Done (awaiting approval) |
-| 5. 3D roof model | ⏳ Next |
-| 6. Solar panel placement | ⬜ |
+| 4. Obstruction detection | ✅ Done |
+| 5. 3D roof model | ✅ Done (awaiting approval) |
+| 6. Solar panel placement | ⏳ Next |
 | 7. Validation, README, write-up, video | ⬜ |
 
 ## Assumptions (running list)
@@ -434,3 +434,57 @@ The end-to-end test covers steps 1→4.
 - The class labels for some west-wing structures (chimney vs dormer part) are uncertain; the keep-out is unaffected.
 - The reference is small (9 objects) and hand-labelled to ±1 m, so recall is indicative, not a statistical estimate.
 - No shading or irradiance analysis: shadows reduce yield but are not treated as geometric obstructions (beyond the conservative keep-out).
+
+---
+
+## Step 5: 3D roof model
+
+**Run:** `python scripts/run_pipeline.py --steps 1 2 3 4 5` (step 5 itself takes 0.1 s)
+**Code:** `src/roofsolar/model3d.py`, `pipeline.py::run_model3d`
+**Outputs:** `outputs/step05_model3d/`
+- `roof_model.ply/.obj/.glb` (coloured mesh, local metres) + `model_metadata.json` (origin in CRS)
+- `roof_faces_3d.geojson` (3D face polygons in EPSG:32630, for GIS)
+- `roof_model.html` (interactive viewer), `stats.json`, `00_summary.png`
+
+### 5.1 Method: a vector roof model with exact geometric consistency
+1. **Face polygons:** polygonise the face labels. They form a *partition*, so neighbours share edges exactly.
+2. **Noding** (found necessary, see 5.2), then **topology-preserving coverage simplification** (GEOS `coverage_simplify`, tolerance 0.15 m ≈ 1.5 px). Each shared edge is simplified once for both neighbours, so there are no gaps or overlaps.
+3. **3D-consistent vertices:**
+   - **Crease vertex** (2 faces meeting in a ridge, hip or valley): moved in plan onto the faces' **intersection line** z_a(x, y) = z_b(x, y). That line is linear: g·(x, y) = h with g = (n_xa/n_za − n_xb/n_zb, n_ya/n_za − n_yb/n_zb), h = d_a/n_za − d_b/n_zb. On it both planes give the same z.
+   - **Junction** (≥ 3 crease faces): the least-squares common point of their planes, solving (NᵀN)p = Nᵀd. This is **exact** for 3 planes.
+   - Moves are limited to 0.3 m (≈ 3 px, within the boundary uncertainty from step 3); beyond that the vertex is left and reported.
+   - **Step** vertices (planes do not meet) keep each face's own z; a vertical wall closes the gap.
+4. **Mesh:**
+   - Each polygon is triangulated by **constrained Delaunay** (holes kept) and every vertex is lifted with its face's plane.
+   - Walls: outer edges go down to the ground (DTM from step 1), found by probing 0.15 m outside each edge; step edges get a wall between the two planes.
+   - Raised obstructions from step 4 become prisms up to their 90th-percentile raw height.
+5. **Exports:**
+   - Meshes are written in **local metres plus an origin**, because float32 mesh formats cannot store UTM coordinates (about 6.4·10⁵ m) to cm precision.
+   - The GeoJSON is in full CRS coordinates (float64 JSON).
+
+### 5.2 Problems found and fixed
+| Problem | Evidence | Fix |
+|---|---|---|
+| No vertex was shared by ≥ 3 faces, so junctions were never recognised | 15 pixel corners touch 3 faces, but **0** polygon vertices did | the polygonizer drops **collinear** vertices: at a T-junction the point is a vertex of two faces but not of the third, whose edge runs straight through. **Noding** (`shapely.snap` of each polygon to its neighbours' boundaries) inserts it, giving 13 shared junction vertices |
+| Crease-gap metric reported up to 36 cm | gaps included faces meeting in a *step* at that vertex, and compared a different pair than the one snapped | measure only between the faces that meet in creases (the snapped pair, or all junction planes). Junctions where the plane solution was too far are a separate category (unresolved) |
+| `planarity_max_m` was hard-coded to 0 | a claim, not a measurement | measured on the mesh: max distance of any roof vertex from its face plane |
+
+### 5.3 Validation
+| Check | Result |
+|---|---|
+| Simplification | 4974 → 880 vertices; max face-area change 1.5 %; zero overlap; all polygons valid |
+| Vertex types | 289 crease, 7 junction, 72 step, 5 unresolved junction, 507 single (eaves, object edges) |
+| **Crease/junction consistency** | max height disagreement **3.8e-13 m** (floating-point zero) |
+| Snap moves | median 4.7 cm, max 28.6 cm |
+| **Planarity** (measured) | max vertex-to-plane distance **1.4e-14 m** |
+| Unresolved junctions | 5; the faces' planes meet 0.4–1.4 m away (one near-parallel triple, condition 7·10⁵); remaining gaps 9, 32, 42, 10, 30 cm. All are at small clutter faces near dormers or the lantern |
+| Model vs step-3 raster | label agreement 99.7 %; height difference median 0 |
+| Model vs raw DSM | median \|Δz\| 2.8 cm (noise level); RMSE 10.9 cm (dominated by the smeared edges the model rebuilds) |
+| Roof area | mesh 560.8 m² vs raster 559.2 m² |
+| Analytic test | synthetic hip roof: 4 faces, exactly 2 junctions, ridge ends within **5 cm** of the analytic 3D positions, crease gaps < 1e-9 m |
+
+### 5.4 Limitations
+- The outline follows the simplified pixel boundary (wavy by a few cm); it is not regularised to straight, orthogonal building edges.
+- Objects are simple flat-topped prisms (LOD1-style). Dormers are not modelled with their own roofs, except where step 3 made dormer roofs faces.
+- Building pixels that are neither a face nor a raised object (wall smear, tree leak) are left as holes rather than invented.
+- The model is not a closed solid (holes and object prisms are not stitched), so no volume is reported.

@@ -219,6 +219,17 @@ directly in QGIS.
 
 ![Step 4 summary](docs/figures/step04_summary.png)
 
+**Step 5: `outputs/step05_model3d/`**
+
+| File | Content |
+|---|---|
+| `roof_model.html` | **interactive 3D viewer** (open in a browser) |
+| `roof_model.ply` / `.obj` / `.glb` | coloured mesh: planar roof faces, walls, obstruction prisms (local metres; origin in `model_metadata.json`) |
+| `roof_faces_3d.geojson` | 3D face polygons in EPSG:32630 with slope, aspect and area (opens in QGIS) |
+| `stats.json` | consistency checks: crease/junction gaps, planarity, simplification error |
+
+![Step 5 model](docs/figures/step05_model3d.png)
+
 ## Configuration
 
 All parameters (slope limits, obstruction height threshold, panel dimensions, setbacks, ...) live in
@@ -247,6 +258,6 @@ The approach, key algorithms, assumptions, limitations and incomplete tasks will
 | 2. Cleaning (noise, missing data) | ✅ |
 | 3. Roof face segmentation & plane fitting | ✅ |
 | 4. Obstruction detection | ✅ |
-| 5. 3D roof model | ⏳ next |
-| 6. Solar panel placement | ⬜ |
+| 5. 3D roof model | ✅ |
+| 6. Solar panel placement | ⏳ next |
 | 7. Validation & write-up | ⬜ |
