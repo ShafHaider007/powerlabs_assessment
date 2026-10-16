@@ -2,9 +2,39 @@
 # Units: metres and degrees unless noted otherwise.
 
 paths:
-  dsm: data/raw/dsm_clipped.tif
-  dsm_full: data/raw/dsm_full.tif
-  rgb: data/raw/rgb.tif
+  dsm: data/raw/dsm_clipped.tif        # area of interest (property polygon); NoData outside
+  dsm_full: data/raw/dsm_full.tif      # same grid, larger extent, no NoData
+  rgb: data/raw/rgb.tif                # aligned with dsm_full
   output_dir: outputs
 
-# Filled in as each step is implemented.
+# ---------------------------------------------------------------- step 1
+terrain:
+  # Derivatives are computed on the full DSM and then cropped to the AOI, so pixels
+  # on the AOI boundary use real neighbours instead of a fake edge.
+  edge_mode: extrapolate               # outer frame of the tile: extrapolate | nan
+  true_north: true                     # rotate aspect from UTM grid north to true north
+  # Below this slope the aspect is noise, not a facing direction -> NaN.
+  # "auto" = the flat_noise_percentile of slope measured on open flat ground, i.e. the
+  # slope that DSM noise alone produces (see docs/progress.md, step 1). Or give a number.
+  flat_slope_deg: auto
+  flat_noise_percentile: 95
+
+ground:                                # bare-ground model (DTM) via morphological opening
+  cell_m: 1.0                          # working resolution for the large filter
+  window_m: 31.0                       # must be wider than the largest building (~26 m)
+  smooth_sigma_m: 2.0
+
+diagnostics:
+  noise_window_px: 15                  # 1.5 m tiles for the plane-residual noise estimate
+  noise_percentile: 10                 # flattest 10 % of tiles = sensor noise floor
+  ground_max_height_m: 0.3             # nDSM below this counts as ground (noise check)
+  ground_buffer_m: 1.0                 # skip ground within 1 m of raised objects (wall bases, hedges)
+  # Data provenance: the raw DSM stores heights in 1 cm steps; regions with off-grid
+  # heights were re-processed by the provider (found in step 1). Diagnostic only.
+  height_quantum_m: 0.01
+  off_grid_window_px: 11
+  off_grid_min_density: 0.5
+  # Rough roof-candidate filter used only for the step-1 aspect preview.
+  # Step 3 replaces it with proper face segmentation.
+  roof_min_height_m: 2.5
+  roof_slope_range_deg: [15, 60]

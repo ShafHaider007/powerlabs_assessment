@@ -135,19 +135,39 @@ Stored in `data/raw/`, all on the same 0.1 m grid in **WGS 84 / UTM zone 30N (EP
 
 ## Running the solution
 
-> These commands are added as each pipeline step is built.
-
 ```bash
 source .venv/bin/activate
 
-# Full pipeline
-python scripts/run_pipeline.py --config configs/default.yaml
+# Full pipeline (all implemented steps)
+python scripts/run_pipeline.py
+
+# A single step, or a custom config
+python scripts/run_pipeline.py --steps 1
+python scripts/run_pipeline.py --config configs/my_config.yaml
+
+# Cross-check slope/aspect against GDAL (needs gdaldem; QGIS's copy is found automatically)
+python scripts/validate_terrain_gdal.py
 ```
 
 ## Outputs
 
 All results go to `outputs/` (git-ignored; rerun the pipeline to regenerate them). Each step
-writes to its own `stepN_*` subfolder. This section will list the outputs as steps are added.
+writes to its own `stepNN_*` subfolder. GeoTIFFs keep the input georeferencing, so they open
+directly in QGIS.
+
+**Step 1: `outputs/step01_terrain/`**
+
+| File | Content |
+|---|---|
+| `elevation.tif` | DSM heights in the area of interest (m a.s.l.) |
+| `slope.tif` | slope (deg), Horn's method |
+| `aspect.tif` | facing direction (deg clockwise from **true** north); NaN where flat |
+| `normals.tif` | unit surface normals, 3 bands (east, north, up) |
+| `dtm.tif`, `ndsm.tif` | estimated ground height and height above ground (m) |
+| `stats.json` | grid info, noise estimates, flat threshold, roof aspect peaks |
+| `00_summary.png` … `06_data_provenance.png` | figures |
+
+![Step 1 summary](docs/figures/step01_summary.png)
 
 ## Configuration
 
@@ -173,8 +193,8 @@ The approach, key algorithms, assumptions, limitations and incomplete tasks will
 
 | Step | Status |
 |---|---|
-| 1. Terrain analysis (elevation, slope, aspect) | ⏳ next |
-| 2. Cleaning (noise, missing data) | ⬜ |
+| 1. Terrain analysis (elevation, slope, aspect) | ✅ |
+| 2. Cleaning (noise, missing data) | ⏳ next |
 | 3. Roof face segmentation & plane fitting | ⬜ |
 | 4. Obstruction detection | ⬜ |
 | 5. 3D roof model | ⬜ |
