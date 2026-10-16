@@ -116,6 +116,15 @@ obstructions:
   # (measured), which is also a sensible installation clearance.
   buffer_m: 0.3
 
+# ---------------------------------------------------------------- step 5
+model3d:
+  # 1.5 px: removes the pixel staircase; max face-area change 1.4 %, zero overlaps (measured)
+  simplify_tolerance_m: 0.15
+  # Vertices may move this far (in plan) onto plane intersections: ~3 px, within the
+  # wall/crease smear and the step-3 boundary uncertainty
+  max_snap_m: 0.3
+  min_object_m2: 0.1                   # raised obstructions modelled as prisms
+
 figures:
   # Cross-section lines in AOI pixel coordinates: [col, row, azimuth_deg, length_m, label]
   profiles:

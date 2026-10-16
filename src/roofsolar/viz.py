@@ -679,3 +679,115 @@ def plot_obstructions(t, fr, res, det, ref_path, out: Path) -> None:
     fig.tight_layout()
     fig.savefig(out / "00_summary.png", dpi=100)
     plt.close(fig)
+
+
+VERTEX_STYLE = {
+    "crease": ("o", "black", 9),
+    "junction": ("*", "red", 90),
+    "unresolved_junction": ("X", "darkviolet", 70),
+    "step": ("s", "magenta", 14),
+}
+
+
+def _shade(colors: np.ndarray, normals: np.ndarray) -> np.ndarray:
+    """Lambert shading for the 3D renders (light from the NW, 45 deg up)."""
+    light = np.array([-0.5, 0.5, 0.707])
+    light /= np.linalg.norm(light)
+    k = 0.45 + 0.55 * np.clip(np.abs(normals @ light), 0, 1)
+    return np.clip(colors / 255 * k[:, None], 0, 1)
+
+
+def plot_model3d(res, fr, t, out: Path) -> None:
+    """Plan view of the vector model (with vertex types) and two 3D renders."""
+    from matplotlib.patches import Polygon as MplPolygon
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+    v, f, col = res.vertices, res.triangles, res.colors
+    tri = v[f]
+    n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    n /= np.linalg.norm(n, axis=1, keepdims=True) + 1e-12
+    shaded = _shade(col.astype(float), n)
+
+    fig = plt.figure(figsize=(24, 9))
+    ax = fig.add_subplot(1, 3, 1)
+    for k, plist in res.model.polygons.items():
+        idx = np.flatnonzero(res.face_id == k)
+        fc = col[idx[0]] / 255 if len(idx) else (0.8, 0.8, 0.8)
+        for p in plist:
+            ax.add_patch(
+                MplPolygon(np.array(p.exterior.coords), closed=True, fc=fc, ec="k", lw=0.6)
+            )
+            for r in p.interiors:
+                ax.add_patch(
+                    MplPolygon(np.array(r.coords), closed=True, fc="white", ec="k", lw=0.5)
+                )
+    for kind, (mk, c, s) in VERTEX_STYLE.items():
+        pts = np.array([vv.xy for vv in res.model.vertices.values() if vv.kind == kind])
+        if len(pts):
+            ax.scatter(
+                pts[:, 0], pts[:, 1], marker=mk, c=c, s=s, zorder=5, label=f"{kind} ({len(pts)})"
+            )
+    ax.set_aspect("equal")
+    ax.autoscale_view()
+    ax.legend(loc="lower left", fontsize=8)
+    st = res.stats
+    ax.set_title(
+        f"Vector model: {st['faces']} faces, {st['polygon_vertices']} vertices\n"
+        f"crease/junction vertices consistent to {st['crease_vertex_gap_m_max']:.1e} m",
+        fontsize=10,
+    )
+    ax.set_xlabel("east (m)")
+    ax.set_ylabel("north (m)")
+
+    for i, (elev, azim, title) in enumerate(
+        ((35, -130, "3D view from the south-west"), (35, 50, "3D view from the north-east"))
+    ):
+        a = fig.add_subplot(1, 3, i + 2, projection="3d")
+        # edges in the face colour: avoids antialiasing seams between triangles
+        a.add_collection3d(
+            Poly3DCollection(tri, facecolors=shaded, edgecolors=shaded, linewidths=0.3)
+        )
+        lo, hi = v.min(0), v.max(0)
+        a.set_xlim(lo[0], hi[0])
+        a.set_ylim(lo[1], hi[1])
+        a.set_zlim(lo[2], lo[2] + max(hi[0] - lo[0], hi[1] - lo[1]) * 0.5)
+        a.set_box_aspect((hi[0] - lo[0], hi[1] - lo[1], max(hi[0] - lo[0], hi[1] - lo[1]) * 0.5))
+        a.view_init(elev=elev, azim=azim)
+        a.set_title(title, fontsize=10)
+        a.set_axis_off()
+    fig.tight_layout()
+    fig.savefig(out / "00_summary.png", dpi=100)
+    plt.close(fig)
+
+
+def model_html(res, path: Path) -> None:
+    """Interactive 3D viewer (plotly, loads plotly.js from its CDN)."""
+    import plotly.graph_objects as go
+
+    v, f, c = res.vertices, res.triangles, res.colors
+    v0 = v - v.min(0) * np.array([1, 1, 0])  # start at (0, 0) in plan for nicer axes
+    mesh = go.Mesh3d(
+        x=v0[:, 0],
+        y=v0[:, 1],
+        z=v0[:, 2],
+        i=f[:, 0],
+        j=f[:, 1],
+        k=f[:, 2],
+        facecolor=[f"rgb({r},{g},{b})" for r, g, b in c],
+        flatshading=True,
+        lighting=dict(ambient=0.5, diffuse=0.8, specular=0.1),
+        lightposition=dict(x=-100, y=100, z=200),
+        hoverinfo="skip",
+    )
+    fig = go.Figure(mesh)
+    fig.update_layout(
+        scene=dict(
+            aspectmode="data",
+            xaxis_title="east (m)",
+            yaxis_title="north (m)",
+            zaxis_title="z (m a.s.l.)",
+        ),
+        title="Reconstructed roof (planar faces, walls, obstructions)",
+        margin=dict(l=0, r=0, t=40, b=0),
+    )
+    fig.write_html(path, include_plotlyjs="cdn")

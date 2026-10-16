@@ -15,7 +15,7 @@ from rasterio.windows import Window
 from scipy import ndimage as ndi
 from skimage.filters import threshold_otsu
 
-from roofsolar import cleaning, faces, obstructions, terrain, viz
+from roofsolar import cleaning, faces, model3d, obstructions, terrain, viz
 from roofsolar.raster_io import Raster, crop, read_raster, window_of, write_raster
 
 log = logging.getLogger(__name__)
@@ -766,3 +766,272 @@ def run_obstructions(cfg: dict[str, Any], prev: FacesResult | None = None) -> Ob
         seconds,
     )
     return res
+
+
+@dataclass
+class ModelResult:
+    """Step-5 outputs."""
+
+    model: model3d.Model
+    vertices: np.ndarray  # mesh vertices, local metres (x east, y north, z a.s.l.)
+    triangles: np.ndarray
+    colors: np.ndarray  # per-triangle RGB
+    part: list[str]  # per-triangle: roof | wall | object
+    face_id: np.ndarray  # per-triangle roof face id (-1 for walls / objects)
+    origin_utm: tuple[float, float]  # local (0, 0) in the CRS
+    stats: dict[str, Any]
+    obstructions: ObstructionResult | None = None
+
+
+def run_model3d(cfg: dict[str, Any], prev: ObstructionResult | None = None) -> ModelResult:
+    """Step 5: vector 3D roof model (planar faces, consistent creases, walls, objects)."""
+    import matplotlib
+
+    if prev is None or prev.faces is None:
+        prev = run_obstructions(cfg)
+    fr = prev.faces
+    t = fr.cleaning.terrain
+    mcfg = cfg["model3d"]
+    out = Path(cfg["paths"]["output_dir"]) / "step05_model3d"
+    out.mkdir(parents=True, exist_ok=True)
+    pixel = t.inputs.full.pixel_size
+    labels, planes, building = fr.labels, fr.planes, fr.candidate
+    rows, cols = labels.shape
+    origin = (t.inputs.clip.transform.c, t.inputs.clip.transform.f)
+
+    t0 = time.perf_counter()
+    raw_polys = model3d.polygonize(labels, pixel)
+    polys = model3d.face_polygons(labels, pixel, mcfg["simplify_tolerance_m"])
+    model = model3d.consistent_vertices(polys, planes, fr.edges, mcfg["max_snap_m"])
+
+    # point samplers on the raster grid (local metres -> pixel)
+    def pix(xy):
+        c = int(np.clip(np.floor(xy[0] / pixel[0]), 0, cols - 1))
+        r = int(np.clip(np.floor(-xy[1] / pixel[1]), 0, rows - 1))
+        return r, c
+
+    dtm = np.where(np.isnan(t.dtm.data), np.nanmedian(t.dtm.data), t.dtm.data)
+    idx = ndi.distance_transform_edt(labels == 0, return_distances=False, return_indices=True)
+    nearest_face = labels[tuple(idx)]
+
+    def inside(xy):
+        r, c = pix(xy)
+        return int(labels[r, c]), bool(building[r, c])
+
+    def ground_z(xy):
+        return float(dtm[pix(xy)])
+
+    def roof_z(xy):
+        return float(planes[int(nearest_face[pix(xy)])].z_at(*xy))
+
+    # colours: faces by aspect (hsv, as in the 2D figures), glass faces light cyan
+    cmap = matplotlib.colormaps["hsv"]
+    glass_ids = {f["id"] for f in prev.face_usable if f["glass"]}
+    colors = {}
+    for f in fr.face_table:
+        rgb = (np.array(cmap(f["aspect_deg"] / 360)[:3]) * 0.75 + 0.25) * 255
+        colors[f["id"]] = (170, 225, 240) if f["id"] in glass_ids else tuple(rgb.astype(int))
+
+    mp = model3d.roof_mesh(model, colors)
+    step_pairs = {(min(e.a, e.b), max(e.a, e.b)) for e in fr.edges if e.kind == "step"}
+    model3d.add_walls(mp, model, inside, ground_z, step_pairs)
+
+    # raised non-glass obstructions (dormers, chimneys, vents) as prisms up to p90 raw height
+    raised = np.isin(prev.classes, (1, 2, 3))
+    obj_polys, tops = [], []
+    for poly in model3d.polygonize(model3d_label(raised), pixel, mcfg["min_object_m2"]).values():
+        for p in poly:
+            p = p.simplify(mcfg["simplify_tolerance_m"])
+            if not p.is_valid or p.area < mcfg["min_object_m2"]:
+                continue
+            m = rasterize_polygon(p, labels.shape, pixel)
+            vals = t.elevation.data[m]
+            if vals.size:
+                obj_polys.append(p)
+                tops.append(float(np.nanpercentile(vals, 90)))
+    model3d.add_prisms(mp, obj_polys, roof_z, tops)
+    vertices, triangles, tri_colors = model3d.to_arrays(mp)
+    seconds = time.perf_counter() - t0
+
+    # --- validation ---------------------------------------------------------------------
+    gaps = model3d.crease_gaps(model)
+    kinds: dict[str, int] = {}
+    for v in model.vertices.values():
+        kinds[v.kind] = kinds.get(v.kind, 0) + 1
+    moved = np.array(
+        [
+            v.moved_m
+            for v in model.vertices.values()
+            if v.kind in ("crease", "junction", "unresolved_junction")
+        ]
+    )
+    area_change = {
+        k: abs(sum(p.area for p in polys.get(k, [])) - sum(p.area for p in raw_polys[k]))
+        / sum(p.area for p in raw_polys[k])
+        for k in raw_polys
+    }
+    # model surface vs the planar raster of step 3 and the raw DSM, at face pixels
+    model_z = np.full(labels.shape, np.nan)
+    model_lab = np.zeros(labels.shape, np.int32)
+    x, y = faces.pixel_coords(labels.shape, pixel)
+    for k, plist in model.polygons.items():
+        for p in plist:
+            m = rasterize_polygon(p, labels.shape, pixel)
+            model_lab[m] = k
+            model_z[m] = planes[k].z_at(x[m], y[m])
+    both = (model_lab > 0) & (labels > 0)
+    agree = float((model_lab[both] == labels[both]).mean())
+    d_planar = (model_z - fr.planar.data)[both]
+    d_raw = (model_z - t.elevation.data)[both]
+    unresolved_gap = []
+    for v in model.vertices.values():
+        if v.kind == "unresolved_junction":
+            z = [planes[f].z_at(*v.xy) for f in v.crease_faces]
+            unresolved_gap.append(float(np.max(z) - np.min(z)))
+    stats = {
+        "seconds": round(seconds, 1),
+        "faces": len(model.polygons),
+        "polygons": sum(len(v) for v in model.polygons.values()),
+        "polygon_vertices": len(model.vertices),
+        "raw_boundary_vertices": int(
+            sum(
+                len(p.exterior.coords) + sum(len(r.coords) for r in p.interiors)
+                for v in raw_polys.values()
+                for p in v
+            )
+        ),
+        "simplification_max_face_area_change": round(max(area_change.values()), 4),
+        "vertex_kinds": kinds,
+        "snap_move_m": {
+            "median": round(float(np.median(moved)), 3),
+            "max": round(float(moved.max()), 3),
+        }
+        if len(moved)
+        else {},
+        "crease_vertex_gap_m_max": float(gaps.max()) if len(gaps) else 0.0,
+        "unresolved_junction_gap_m": [round(g, 3) for g in unresolved_gap],
+        "planarity_max_m": planarity_max(vertices, triangles, np.array(mp.face_id), planes),
+        "model_vs_raster_label_agreement": round(agree, 4),
+        "model_vs_planar_raster_m": {
+            "median_abs": round(float(np.median(np.abs(d_planar))), 4),
+            "p95_abs": round(float(np.percentile(np.abs(d_planar), 95)), 4),
+        },
+        "model_vs_raw_dsm_m": {
+            "median_abs": round(float(np.nanmedian(np.abs(d_raw))), 4),
+            "rmse": round(float(np.sqrt(np.nanmean(d_raw**2))), 4),
+        },
+        "objects_as_prisms": len(obj_polys),
+        "mesh": {
+            "vertices": int(len(vertices)),
+            "triangles": int(len(triangles)),
+            "roof_area_3d_m2": round(
+                float(mesh_area(vertices, triangles, np.array(mp.part) == "roof")), 1
+            ),
+        },
+        "origin_utm": [origin[0], origin[1]],
+    }
+
+    res = ModelResult(
+        model, vertices, triangles, tri_colors, mp.part, np.array(mp.face_id), origin, stats, prev
+    )
+    export_model(res, fr, t, out)
+    (out / "stats.json").write_text(json.dumps(stats, indent=2))
+    viz.plot_model3d(res, fr, t, out)
+    log.info(
+        "Step 5: %d faces, %d vertices, %d triangles, %.1f s",
+        stats["faces"],
+        stats["polygon_vertices"],
+        len(triangles),
+        seconds,
+    )
+    return res
+
+
+def model3d_label(mask: np.ndarray) -> np.ndarray:
+    lab, _ = ndi.label(mask)
+    return lab
+
+
+def rasterize_polygon(p, shape: tuple[int, int], pixel: tuple[float, float]) -> np.ndarray:
+    """Boolean mask of pixel centres inside a local-metre polygon."""
+    from affine import Affine
+    from rasterio.features import rasterize
+
+    tr = Affine(pixel[0], 0, 0, 0, -pixel[1], 0)
+    return rasterize([(p, 1)], out_shape=shape, transform=tr, fill=0).astype(bool)
+
+
+def planarity_max(v: np.ndarray, f: np.ndarray, face_id: np.ndarray, planes) -> float:
+    """Largest distance of any roof-mesh vertex from its face's plane (measured, not assumed)."""
+    worst = 0.0
+    for k, pl in planes.items():
+        idx = np.unique(f[face_id == k])
+        if len(idx):
+            worst = max(worst, float(np.max(np.abs(v[idx] @ pl.normal - pl.d))))
+    return worst
+
+
+def mesh_area(v: np.ndarray, f: np.ndarray, sel: np.ndarray) -> float:
+    a, b, c = v[f[sel, 0]], v[f[sel, 1]], v[f[sel, 2]]
+    return float(0.5 * np.linalg.norm(np.cross(b - a, c - a), axis=1).sum())
+
+
+def export_model(res: ModelResult, fr: FacesResult, t: TerrainResult, out: Path) -> None:
+    """Mesh (PLY/OBJ/GLB, local metres + origin), 3D face polygons (GeoJSON, CRS coords)
+    and an interactive HTML viewer."""
+    import trimesh
+
+    mesh = trimesh.Trimesh(res.vertices, res.triangles, face_colors=res.colors, process=False)
+    for ext in ("ply", "obj", "glb"):
+        mesh.export(out / f"roof_model.{ext}")
+    e0, n0 = res.origin_utm
+    feats = []
+    table = {f["id"]: f for f in fr.face_table}
+    for k, plist in res.model.polygons.items():
+        pl = fr.planes[k]
+        for p in plist:
+
+            def ring3d(ring, pl=pl):
+                c = np.array(ring.coords)
+                z = pl.z_at(c[:, 0], c[:, 1])
+                return [
+                    [float(xx + e0), float(yy + n0), float(zz)]
+                    for (xx, yy), zz in zip(c, z, strict=True)
+                ]
+
+            feats.append(
+                {
+                    "type": "Feature",
+                    "properties": {
+                        k2: table[k][k2]
+                        for k2 in ("id", "slope_deg", "aspect_deg", "area_3d_m2", "rmse_clean_m")
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [ring3d(p.exterior)] + [ring3d(r) for r in p.interiors],
+                    },
+                }
+            )
+    (out / "roof_faces_3d.geojson").write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "crs": {"type": "name", "properties": {"name": t.inputs.clip.crs.to_string()}},
+                "features": feats,
+            }
+        )
+    )
+    (out / "model_metadata.json").write_text(
+        json.dumps(
+            {
+                "mesh_units": "metres",
+                "mesh_axes": "x east, y north, z metres above sea level",
+                "local_origin_in_crs": [e0, n0],
+                "crs": t.inputs.clip.crs.to_string(),
+                "note": "add local_origin to mesh x, y to get CRS coordinates (kept local because "
+                "float32 mesh formats cannot hold UTM coordinates to cm precision)",
+            },
+            indent=2,
+        )
+    )
+    viz.model_html(res, out / "roof_model.html")
