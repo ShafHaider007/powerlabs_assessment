@@ -5,9 +5,9 @@ One entry per step. Each entry covers what was done, outputs, decisions and why,
 | Step | Status |
 |---|---|
 | 1. Load data, then elevation, slope, aspect | ✅ Done |
-| 2. Clean noise, fill missing data | ✅ Done (awaiting approval) |
-| 3. Roof face segmentation and plane fitting | ⏳ Next |
-| 4. Obstruction detection | ⬜ |
+| 2. Clean noise, fill missing data | ✅ Done |
+| 3. Roof face segmentation and plane fitting | ✅ Done (awaiting approval) |
+| 4. Obstruction detection | ⏳ Next |
 | 5. 3D roof model | ⬜ |
 | 6. Solar panel placement | ⬜ |
 | 7. Validation, README, write-up, video | ⬜ |
@@ -248,3 +248,100 @@ g h i      slope = atan(√(gx² + gy²))      aspect = atan2(−gx, −gy) mod 
 - ExG mislabels the glass lantern as vegetation.
 - ExG is RGB-only; there is no NIR band for NDVI.
 - 36 s runtime (pure NumPy). Acceptable here; a GPU or numba port would be the next step for large areas.
+
+---
+
+## Step 3: Roof faces, plane fitting, planar reconstruction
+
+**Run:** `python scripts/run_pipeline.py --steps 1 2 3` (step 3 itself takes about 2 s)
+**Evidence:** `python scripts/validate_faces.py` (synthetic accuracy and real-data stability)
+**Code:** `src/roofsolar/faces.py`, `pipeline.py::run_faces`
+**Outputs:** `outputs/step03_faces/`
+- `faces.tif` (labels), `candidate.tif`
+- `planar.tif` (plane heights), `roof_surface.tif` (planes plus cleaned DSM on non-face building pixels)
+- `residual.tif` (raw − plane, the input for step 4)
+- `faces.json` (per face: area, slope, aspect, RMSE, plane in UTM `z = aE + bN + c`)
+- `edges.json` (adjacency with type and consistency), `stats.json`
+- figures `00_summary`, `01_stages`, `02_profiles`; `validation/validation.json`
+
+### 3.1 Findings that shaped the method
+| Finding | Evidence | Consequence |
+|---|---|---|
+| True wall line is at about 1.5 m nDSM | smeared walls: steepest point at nDSM 1.4–2.2 m, eave tops at about 3.1 m (profiles) | footprint threshold 1.5 m, not 2.5 m |
+| Glass lantern labelled vegetation by ExG | step 2 | fill holes in the building mask |
+| Shaded tree canopy at NW not caught by ExG | mask leak | a roof is **what is planar**: canopy cannot form a well-fitting plane, so it drops out |
+| Real faces: pitch 35–40°, 4 orientations, plane RMSE 1.2–4.4 cm | segment statistics | sliver test: real faces keep 40–78 % after 0.3 m erosion, slivers about 0 %. RMSE limit 5 cm (2× waviness) |
+| Roof structure | faces on RGB | main hip roof (ridge 10.5 m) + south **ring wing** around a **4-sided glass pyramid lantern** + west wing with dormers; the main SW face continues as the ring's inner face (one plane, 2.3 cm RMSE) |
+
+### 3.2 Method (`faces.segment_roof`)
+1. **Candidate mask:** nDSM > 1.5 m and not vegetation; the largest connected region; holes filled.
+2. **Plane-aware region growing** on the cleaned normals.
+   - Seeds come from the most planar pixels (normal within 3° of its 5×5 mean).
+   - A pixel joins when its normal is within **10°** of the *region's fitted plane* normal and it lies within **10 cm** of that plane.
+   - Comparing with the region, not the neighbour, stops leakage across the provider-rounded creases, where normals bend gradually.
+   - 10° ≈ 8× the cleaned normal scatter (1.25°); 10 cm ≈ 4× the waviness.
+3. **Robust total-least-squares planes:** smallest singular vector of the centred points (orientation-independent, unbiased on steep faces, unlike z = ax + by + c regression; tested at 60°). Iteratively drop points beyond 2.5 robust σ **from the median residual**.
+4. **Tidy:**
+   - agglomerative coplanar merge: angle < 5°, union RMSE < 4 cm and ≤ 1.3 × pooled RMSE
+   - drop slivers (< 15 % survive a 0.3 m erosion) and segments < 1 m²
+   - drop poor fits (RMSE > 5 cm, i.e. mixed segments such as the roof-window patch)
+5. **k-planes assignment:** each building pixel takes the vertically closest plane among faces within 1 m, if within 25 cm (more = an object; chimneys ≥ 0.3 m), then refit; 3 iterations, tidy, one more pass. **On a rounded crease the closest-plane switch happens exactly where the two planes are equal, i.e. on their intersection line, so sharp ridges, hips and valleys are rebuilt.**
+6. **Eave reconstruction:** unassigned pixels in the 1 m band inside the footprint edge whose data is *below* an **adjacent** face's plane (smeared downwards) are given to that face, extending it to the wall line. Data *above* the plane is left for obstruction detection.
+7. **Adjacency and consistency:**
+   - Each touching pair is a crease (planes agree within 10 cm on the boundary) or a step.
+   - Crease type comes from convexity: each plane, extended over the other face, lies above it means ridge (horizontal intersection) or hip; otherwise valley.
+   - **Consistency:** the boundary must run along the planes' 3D intersection line: angle < 5° and offset ≤ max(15 cm, 3·σ_line).
+   - σ_line = σ_z / |∇z_a − ∇z_b| is the uncertainty of the intersection position (error propagation), so nearly parallel planes are judged fairly.
+
+Reconstructed surface = each face pixel takes its plane height.
+
+### 3.3 Problems found and fixed while building it
+| Problem | How it showed up | Fix |
+|---|---|---|
+| Robust plane fit kept outliers | unit test with 20 % gross outliers: 0.4° error, no points rejected | threshold centred on the **median residual** (a biased first fit offsets the inliers from 0); now exact, all outliers rejected |
+| Roof-window patch accepted as a face | face RMSE 8.5 cm, on RGB = roof windows between dormers | RMSE > 5 cm means not a face (pixels go back to neighbours or to step 4) |
+| Fixed consistency threshold unfair to near-parallel planes | 17–19 and 17–20 offsets of 0.4–0.6 m with only 7–9° between planes | uncertainty-aware threshold (σ_line) |
+| **Faces lost by chained merging** | stability test: in 1 of 10 runs two large faces (35 m², 16 m²) vanished; a plane changed by **74.7°** | union-find chained A~B~C although A and C were not coplanar (5–6: parallel, 33 cm apart), and the blob then failed the RMSE test. Replaced by **greedy agglomerative merging** (best pair first, re-evaluated on the real union) plus the relative RMSE test. Worst plane change is now **0.16°** |
+| Eave extension from a distant face | same run: edge pixels given to an opposite-facing face | only from a face within the eave band |
+
+### 3.4 Validation
+**A. Synthetic truth** (hip roof degraded like the real DSM, run through step 2 and step 3; 3 noise seeds):
+
+| median \|error\| | raw | cleaned (step 2) | **reconstructed (step 3)** |
+|---|---|---|---|
+| faces | 1.9 cm | 1.2 cm | **0.2–0.5 cm** |
+| creases (ridges/hips) | 6.8 cm | 6.8 cm | **0.3–0.8 cm** |
+| walls/eaves inside footprint | 146 cm | 146 cm | **0.4–0.9 cm** |
+
+- 4 of 4 faces every seed; plane error ≤ 0.2°; label accuracy 99.7 %; footprint IoU 0.957.
+- Step 2 could not repair blurred edges, but plane reconstruction does: creases are about 10× better, and eaves go from metres to under 1 cm.
+
+**B. Real-data stability** (10 runs with 1 mm perturbations, 25× below the waviness):
+- 24–26 faces per run; pixel agreement ≥ 95.5 % (mean 97.2 %)
+- **large-face planes change ≤ 0.16°** (median 0.007°)
+- The face count varies only through small faces at clutter and one **genuinely ambiguous pair**: two NE regions whose single-plane RMSE is 1.21× the two-plane RMSE (in 9 of 10 runs they merge into one NE face).
+- Region growing is order-dependent, which is why float32 vs float64 inputs alone gave 23 vs 25 faces.
+
+**C. Edge restoration on real data:**
+- On crease boundaries, plane height minus raw DSM: **ridges +3.5 cm, hips +2.1 cm, valleys −4.3 cm**.
+- These are exactly the signs expected if the provider's smoothing rounded the creases: the reconstruction puts back the sharp apex and the sharp V.
+- Profiles (`02_profiles.png`) show sharp ridges above the rounded data, and eaves extended to the wall line.
+
+### 3.5 Results
+| | |
+|---|---|
+| Faces | 25 (7 ridges, 21 hips, 13 valleys, 5 steps) |
+| Face area | 457 m² plan, **559 m² true (sloped)**; 88 % of the 522 m² building |
+| Not a face | 65 m²: dormers, chimneys, lantern apex, tree leak, wall smear (for step 4) |
+| Face plane RMSE | median 2.6 cm, max 4.7 cm |
+| Crease consistency | **81 % of 150 m** of creases; median boundary-to-intersection offset 5.9 cm (about half a pixel) |
+| Largest faces | 84.3 m² (35°, SW 224°), 83.3 m² (36°, SE 135°), 49.7 m² (36°, NE 44°), 43.5 m² (37°, SW 224°) |
+| Runtime | 1.8 s |
+
+### 3.6 Limitations
+- About 19 % of crease length is not consistent. It is concentrated in the cluttered west wing (dormers, tree, shade), the glass lantern (unreliable matching on glass) and nearly parallel planes.
+- Small faces near clutter are less stable than large faces.
+- One profile running along a ridge crosses a junction with a small bump, giving a 2-pixel artifact.
+- The roof outline is still the pixel boundary of the footprint threshold. Straight, regularised outline edges are done when building polygons for the 3D model (step 5).
+- Region growing is order-dependent; this is mitigated by the merge/assignment stages and quantified by the stability test.
+- Dormer roofs are mostly left as "not a face" (too small or cluttered). They are not usable for standard panels anyway.

@@ -150,6 +150,9 @@ python scripts/validate_terrain_gdal.py
 
 # Re-create the evidence behind the step-2 choices (filter comparison, hole-fill test)
 python scripts/benchmark_cleaning.py --noise realistic
+
+# Step-3 evidence: accuracy on a synthetic roof + stability on the real roof
+python scripts/validate_faces.py
 ```
 
 ## Outputs
@@ -186,6 +189,20 @@ directly in QGIS.
 
 ![Step 2 summary](docs/figures/step02_summary.png)
 
+**Step 3: `outputs/step03_faces/`**
+
+| File | Content |
+|---|---|
+| `faces.tif` | face labels (0 = not a roof face) |
+| `planar.tif` | reconstructed roof: each face pixel at its plane height |
+| `roof_surface.tif` | planes on faces + cleaned DSM on other building pixels (dormers, chimneys) |
+| `residual.tif` | raw DSM − plane on faces (input for obstruction detection) |
+| `faces.json` | per face: area (plan and sloped), slope, aspect, RMSE, plane `z = aE + bN + c` |
+| `edges.json` | face adjacency: ridge / hip / valley / step, consistency with plane intersection |
+| `validation/` | synthetic accuracy and stability results (from `validate_faces.py`) |
+
+![Step 3 summary](docs/figures/step03_summary.png)
+
 ## Configuration
 
 All parameters (slope limits, obstruction height threshold, panel dimensions, setbacks, ...) live in
@@ -212,8 +229,8 @@ The approach, key algorithms, assumptions, limitations and incomplete tasks will
 |---|---|
 | 1. Terrain analysis (elevation, slope, aspect) | ✅ |
 | 2. Cleaning (noise, missing data) | ✅ |
-| 3. Roof face segmentation & plane fitting | ⏳ next |
-| 4. Obstruction detection | ⬜ |
+| 3. Roof face segmentation & plane fitting | ✅ |
+| 4. Obstruction detection | ⏳ next |
 | 5. 3D roof model | ⬜ |
 | 6. Solar panel placement | ⬜ |
 | 7. Validation & write-up | ⬜ |
