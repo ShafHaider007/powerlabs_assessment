@@ -15,7 +15,7 @@ from rasterio.windows import Window
 from scipy import ndimage as ndi
 from skimage.filters import threshold_otsu
 
-from roofsolar import cleaning, terrain, viz
+from roofsolar import cleaning, faces, terrain, viz
 from roofsolar.raster_io import Raster, crop, read_raster, window_of, write_raster
 
 log = logging.getLogger(__name__)
@@ -296,6 +296,7 @@ class CleaningResult:
     filled: np.ndarray  # bool: every pixel whose value was interpolated (NaN + outliers)
     vegetation: np.ndarray  # bool: canopy (ExG above threshold)
     stats: dict[str, Any]
+    terrain: TerrainResult | None = None
 
 
 def run_cleaning(cfg: dict[str, Any], prev: TerrainResult | None = None) -> CleaningResult:
@@ -445,6 +446,7 @@ def run_cleaning(cfg: dict[str, Any], prev: TerrainResult | None = None) -> Clea
         filled=filled,
         vegetation=vegetation,
         stats=stats,
+        terrain=prev,
     )
     for name in ("dsm_clean", "slope", "aspect", "normals", "removed"):
         r = getattr(res, name)
@@ -468,4 +470,170 @@ def run_cleaning(cfg: dict[str, Any], prev: TerrainResult | None = None) -> Clea
         out,
     )
     log.info("Step 2 outputs written to %s", out)
+    return res
+
+
+@dataclass
+class FacesResult:
+    """Step-3 outputs on the AOI grid."""
+
+    labels: np.ndarray  # int: 0 = not a roof face, 1..N = face id
+    planes: dict[int, faces.Plane]
+    edges: list[faces.Edge]
+    candidate: np.ndarray  # bool: building footprint used for segmentation
+    planar: Raster  # plane heights on faces, NaN elsewhere
+    roof_surface: Raster  # planes on faces, cleaned DSM on other building pixels
+    residual: Raster  # raw DSM - plane on faces (input for obstruction detection)
+    face_table: list[dict]
+    stats: dict[str, Any]
+    cleaning: CleaningResult | None = None
+
+
+def run_faces(cfg: dict[str, Any], prev: CleaningResult | None = None) -> FacesResult:
+    """Step 3: segment roof faces, fit planes and reconstruct a planar roof surface."""
+    if prev is None or prev.terrain is None:
+        prev = run_cleaning(cfg)
+    t, fcfg = prev.terrain, cfg["faces"]
+    inp = t.inputs
+    out = Path(cfg["paths"]["output_dir"]) / "step03_faces"
+    out.mkdir(parents=True, exist_ok=True)
+    pixel = inp.full.pixel_size
+    zc, raw = prev.dsm_clean.data, t.elevation.data
+
+    t0 = time.perf_counter()
+    cand = faces.candidate_mask(zc - t.dtm.data, prev.vegetation, t.aoi, fcfg["min_height_m"])
+    trace: dict = {}
+    params = faces.SegmentParams(**fcfg["segment"])
+    labels, planes = faces.segment_roof(
+        zc, prev.normals.data, prev.slope.data, cand, pixel, params, trace
+    )
+    x, y = faces.pixel_coords(labels.shape, pixel)
+    edges = faces.face_adjacency(
+        labels,
+        planes,
+        x,
+        y,
+        pixel[0],
+        fcfg["crease_gap_m"],
+        fcfg["consistency_max_angle_deg"],
+        fcfg["consistency_min_offset_m"],
+    )
+    seconds = time.perf_counter() - t0
+    planar = faces.planar_surface(labels, planes, pixel)
+    roof_surface = np.where(labels > 0, planar, np.where(cand, zc, np.nan))
+    residual = np.where(labels > 0, raw - planar, np.nan)
+
+    # --- per-face table (local plane + UTM coefficients z = a*E + b*N + c) ---------------
+    e0, n0 = inp.clip.transform.c, inp.clip.transform.f  # local x = E - e0, y = N - n0
+    cell = pixel[0] * pixel[1]
+    table = []
+    for k, pl in sorted(planes.items()):
+        m = labels == k
+        nx, ny, nz = pl.normal
+        r = residual[m]
+        plan_area = float(m.sum() * cell)
+        table.append(
+            {
+                "id": int(k),
+                "pixels": int(m.sum()),
+                "area_plan_m2": round(plan_area, 2),
+                "area_3d_m2": round(plan_area / max(nz, 1e-6), 2),
+                "slope_deg": round(pl.slope_deg, 2),
+                "aspect_deg": round(pl.aspect_deg(t.rotation_deg), 2),
+                "rmse_clean_m": round(pl.rmse, 4),
+                "rmse_raw_m": round(float(np.sqrt(np.mean(r**2))), 4),
+                "robust_sigma_raw_m": round(float(1.4826 * np.median(np.abs(r - np.median(r)))), 4),
+                "centroid_utm": [
+                    round(float(x[m].mean() + e0), 2),
+                    round(float(y[m].mean() + n0), 2),
+                ],
+                "z_mean_m": round(float(planar[m].mean()), 3),
+                "normal_enu": [round(float(v), 6) for v in pl.normal],
+                "plane_utm": {"a": -nx / nz, "b": -ny / nz, "c": (pl.d + nx * e0 + ny * n0) / nz},
+            }
+        )
+    # Edge restoration: on crease boundaries, plane height minus raw DSM. Positive on
+    # ridges/hips = the sharp apex the provider's smoothing had rounded off.
+    restore: dict[str, list[float]] = {"ridge": [], "hip": [], "valley": []}
+    for e in edges:
+        if e.kind == "step":
+            continue
+        ma, mb = labels == e.a, labels == e.b
+        bnd = (ma & ndi.binary_dilation(mb)) | (mb & ndi.binary_dilation(ma))
+        restore[e.kind].extend((planar[bnd] - raw[bnd]).tolist())
+    creases = [e for e in edges if e.kind != "step"]
+    crease_len = sum(e.length_m for e in creases)
+    ok_len = sum(e.length_m for e in creases if e.consistent)
+    stats = {
+        "seconds": round(seconds, 1),
+        "faces": len(planes),
+        "candidate_area_m2": round(float(cand.sum() * cell), 1),
+        "face_area_plan_m2": round(float((labels > 0).sum() * cell), 1),
+        "face_area_3d_m2": round(sum(f["area_3d_m2"] for f in table), 1),
+        "coverage_of_candidate": round(float((labels > 0).sum() / max(cand.sum(), 1)), 3),
+        "unassigned_building_m2": round(float((cand & (labels == 0)).sum() * cell), 1),
+        "stages_segment_count": {k: int(len(np.unique(v)) - 1) for k, v in trace.items()},
+        "face_rmse_clean_cm": _summary(np.array([f["rmse_clean_m"] * 100 for f in table])),
+        "face_robust_sigma_raw_cm": _summary(
+            np.array([f["robust_sigma_raw_m"] * 100 for f in table])
+        ),
+        "edges": {
+            kind: sum(e.kind == kind for e in edges) for kind in ("ridge", "hip", "valley", "step")
+        },
+        "crease_length_m": round(crease_len, 1),
+        "crease_consistent_share": round(ok_len / crease_len, 3) if crease_len else None,
+        "crease_line_offset_m_median": round(
+            float(np.median([e.line_offset_m for e in creases])), 3
+        )
+        if creases
+        else None,
+        "edge_restoration_cm_median": {
+            k: round(float(np.median(v)) * 100, 2) for k, v in restore.items() if v
+        },
+    }
+
+    ref = t.elevation
+    res = FacesResult(
+        labels=labels,
+        planes=planes,
+        edges=edges,
+        candidate=cand,
+        planar=replace(ref, data=planar),
+        roof_surface=replace(ref, data=roof_surface),
+        residual=replace(ref, data=residual),
+        face_table=table,
+        stats=stats,
+        cleaning=prev,
+    )
+    write_raster(out / "faces.tif", replace(ref, data=labels.astype("int16")), nodata=None)
+    write_raster(out / "candidate.tif", replace(ref, data=cand.astype("uint8")), nodata=None)
+    for name in ("planar", "roof_surface", "residual"):
+        r = getattr(res, name)
+        write_raster(out / f"{name}.tif", replace(r, data=r.data.astype("float32")))
+    (out / "faces.json").write_text(
+        json.dumps(
+            {
+                "crs": inp.clip.crs.to_string(),
+                "note": "plane_utm: z = a*E + b*N + c (E, N in the CRS); "
+                "normal_enu is (east, north, up)",
+                "faces": table,
+            },
+            indent=2,
+        )
+    )
+    (out / "edges.json").write_text(
+        json.dumps(
+            [{**{k: v for k, v in e.__dict__.items() if k != "extra"}} for e in edges],
+            indent=2,
+            default=float,
+        )
+    )
+    (out / "stats.json").write_text(json.dumps(stats, indent=2))
+    viz.plot_faces(t, prev, res, trace, cfg["figures"]["profiles"], out)
+    log.info(
+        "Step 3: %d faces, %.0f%% of building, %.1f s",
+        len(planes),
+        100 * stats["coverage_of_candidate"],
+        seconds,
+    )
     return res

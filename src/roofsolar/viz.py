@@ -392,3 +392,170 @@ def plot_cleaning(
     fig.tight_layout()
     fig.savefig(out / "03_noise_reduction.png", dpi=DPI)
     plt.close(fig)
+
+
+EDGE_COLORS = {"ridge": "red", "hip": "orange", "valley": "deepskyblue", "step": "magenta"}
+
+
+def _label_image(labels: np.ndarray, seed: int = 1) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    cmap = rng.random((labels.max() + 1, 3)) * 0.75 + 0.25
+    cmap[0] = 1.0
+    return cmap[labels]
+
+
+def _zoom_window(mask: np.ndarray, pixel, margin_m: float = 3.0):
+    rr, cc = np.nonzero(mask)
+    m = margin_m / pixel[0]
+    return (
+        (cc.min() - m) * pixel[0],
+        (cc.max() + m) * pixel[0],
+        (rr.max() + m) * pixel[1],
+        (rr.min() - m) * pixel[1],
+    )
+
+
+def plot_faces(t, prev, res, trace, profiles, out: Path) -> None:
+    """Write all step-3 figures: faces, crease map, reconstruction, residual, stages, profiles."""
+    from scipy import ndimage as ndi
+
+    from roofsolar import terrain as T
+
+    pixel = res.planar.pixel_size
+    ext = _extent(res.labels.shape, pixel)
+    zoom = _zoom_window(res.candidate, pixel)
+    labels, cand = res.labels, res.candidate
+
+    def setzoom(a):
+        a.set_xlim(zoom[0], zoom[1])
+        a.set_ylim(zoom[2], zoom[3])
+
+    def hs(z):
+        filled = np.where(np.isnan(z), prev.dsm_clean.data, z)
+        filled = np.where(np.isnan(filled), np.nanmin(filled), filled)
+        return T.hillshade(*T.horn_gradients(filled, *pixel), azimuth_deg=315 - t.rotation_deg)
+
+    fig, ax = plt.subplots(2, 3, figsize=(21, 14))
+    # (0,0) RGB + outlines + ids
+    ax[0, 0].imshow(prev.terrain.rgb, extent=ext)
+    for k in res.planes:
+        _outline(ax[0, 0], labels == k, pixel, color="white", lw=0.7)
+        r, c = ndi.center_of_mass(labels == k)
+        ax[0, 0].text(
+            (c + 0.5) * pixel[0],
+            (r + 0.5) * pixel[1],
+            str(k),
+            color="yellow",
+            fontsize=9,
+            fontweight="bold",
+            ha="center",
+            va="center",
+        )
+    _style(ax[0, 0], f"{len(res.planes)} roof faces on the RGB")
+    # (0,1) faces coloured by aspect
+    asp = np.full(labels.shape, np.nan)
+    for f in res.face_table:
+        asp[labels == f["id"]] = f["aspect_deg"]
+    ax[0, 1].imshow(
+        np.where(cand & (labels == 0), 0.6, np.nan), cmap="gray", vmin=0, vmax=1, extent=ext
+    )
+    ax[0, 1].imshow(asp, cmap="hsv", vmin=0, vmax=360, extent=ext, interpolation="nearest")
+    _style(ax[0, 1], "Faces by aspect (grey = building, not a face)")
+    # (0,2) crease map
+    ax[0, 2].imshow(hs(res.roof_surface.data), cmap="gray", extent=ext)
+    for e in res.edges:
+        ma, mb = labels == e.a, labels == e.b
+        bnd = (ma & ndi.binary_dilation(mb)) | (mb & ndi.binary_dilation(ma))
+        rr, cc = np.nonzero(bnd)
+        ax[0, 2].scatter(
+            (cc + 0.5) * pixel[0],
+            (rr + 0.5) * pixel[1],
+            s=1.5,
+            c=EDGE_COLORS[e.kind],
+            marker="s" if e.consistent is not False else "x",
+        )
+    for kind, col in EDGE_COLORS.items():
+        ax[0, 2].plot([], [], "s", color=col, label=f"{kind} ({res.stats['edges'][kind]})")
+    ax[0, 2].legend(loc="lower left", fontsize=8)
+    share = res.stats["crease_consistent_share"]
+    _style(
+        ax[0, 2],
+        f"Edges by type; creases consistent with plane intersection: {share * 100:.0f}% of length",
+    )
+    # (1,0) cleaned DSM, (1,1) reconstructed, (1,2) residual
+    ax[1, 0].imshow(hs(prev.dsm_clean.data), cmap="gray", extent=ext)
+    _style(ax[1, 0], "Cleaned DSM (step 2): rounded ridges, smeared walls")
+    ax[1, 1].imshow(hs(res.roof_surface.data), cmap="gray", extent=ext)
+    _style(ax[1, 1], "Reconstructed roof: planes, sharp creases, rebuilt eaves")
+    im = ax[1, 2].imshow(res.residual.data * 100, cmap="RdBu_r", vmin=-15, vmax=15, extent=ext)
+    ax[1, 2].imshow(
+        np.where(cand & (labels == 0), 0.3, np.nan), cmap="gray", vmin=0, vmax=1, extent=ext
+    )
+    fig.colorbar(im, ax=ax[1, 2], shrink=0.7, label="raw DSM - plane (cm)")
+    _style(ax[1, 2], "Residual to face planes (dark grey = objects / unassigned)")
+    for a in ax.ravel():
+        setzoom(a)
+    fig.tight_layout()
+    fig.savefig(out / "00_summary.png", dpi=100)
+    plt.close(fig)
+
+    # 01 stages
+    stages = [
+        ("grown", trace["grown"]),
+        ("merged + filtered", trace["merged"]),
+        ("assigned (k-planes)", trace["assigned"]),
+        ("final (+ eaves)", labels),
+    ]
+    fig, ax = plt.subplots(1, 4, figsize=(24, 7))
+    for a, (name, lab) in zip(ax, stages, strict=True):
+        img = _label_image(lab)
+        img[~cand] = 0.85
+        a.imshow(img, extent=ext, interpolation="nearest")
+        _style(a, f"{name}: {len(np.unique(lab)) - 1} segments")
+        setzoom(a)
+    fig.tight_layout()
+    fig.savefig(out / "01_stages.png", dpi=90)
+    plt.close(fig)
+
+    # 02 profiles: raw vs cleaned vs reconstructed
+    fig, ax = plt.subplots(len(profiles), 1, figsize=(16, 4.2 * len(profiles)))
+    ax = np.atleast_1d(ax)
+    for a, (col, row, az, length, label) in zip(ax, profiles, strict=True):
+        tt, rows, cols = _profile_coords(col, row, az, length, pixel[0])
+        inside = ndi.map_coordinates(t.aoi.astype(float), [rows, cols], order=1) > 0.999
+        raw = ndi.map_coordinates(np.nan_to_num(t.elevation.data), [rows, cols], order=1)
+        cln = ndi.map_coordinates(np.nan_to_num(prev.dsm_clean.data), [rows, cols], order=1)
+        lab = ndi.map_coordinates(labels, [rows, cols], order=0)
+        # evaluate each face plane exactly at the sample point (no pixel staircase)
+        xs, ys = (cols + 0.5) * pixel[0], -(rows + 0.5) * pixel[1]
+        rec = np.full(tt.shape, np.nan)
+        for k, pl in res.planes.items():
+            m = lab == k
+            rec[m] = pl.z_at(xs[m], ys[m])
+        a.plot(tt, np.where(inside, raw, np.nan), color="0.65", lw=2.5, label="raw DSM")
+        a.plot(tt, np.where(inside, cln, np.nan), "b-", lw=0.8, label="cleaned (step 2)")
+        a.plot(
+            tt,
+            np.where(inside & (lab > 0), rec, np.nan),
+            "r-",
+            lw=1.4,
+            label="reconstructed planes",
+        )
+        a.set_title(label, fontsize=10)
+        a.set_ylabel("z (m)")
+        a.grid(alpha=0.3)
+        good = inside & (lab > 0)
+        if good.any():  # zoom on the highest reconstructed point (a ridge)
+            kk = int(np.nanargmax(np.where(good, rec, np.nan)))
+            sl = slice(max(kk - 25, 0), kk + 25)
+            ins = a.inset_axes([0.01, 0.52, 0.2, 0.45])
+            ins.plot(tt[sl], raw[sl], color="0.65", lw=2.5)
+            ins.plot(tt[sl], cln[sl], "b-", lw=0.8)
+            ins.plot(tt[sl], np.where(good, rec, np.nan)[sl], "r-", lw=1.4)
+            ins.set_title("zoom: highest ridge", fontsize=7)
+            ins.tick_params(labelsize=6)
+    ax[0].legend(loc="upper right")
+    ax[-1].set_xlabel("distance along profile (m)")
+    fig.tight_layout()
+    fig.savefig(out / "02_profiles.png", dpi=100)
+    plt.close(fig)

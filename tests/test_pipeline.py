@@ -7,7 +7,8 @@ from affine import Affine
 from rasterio.crs import CRS
 
 from roofsolar.config import PROJECT_ROOT, load_config
-from roofsolar.pipeline import run_cleaning, run_terrain
+from roofsolar.faces import Plane
+from roofsolar.pipeline import run_cleaning, run_faces, run_terrain
 from roofsolar.synthetic import correlated_noise, hip_roof_scene, quantize
 
 CRS_UTM = CRS.from_epsg(32630)
@@ -56,11 +57,12 @@ def run(tmp_path_factory):
     cfg["figures"]["profiles"] = [[120, 120, 44, 20, "A: test"]]
     t = run_terrain(cfg)
     c = run_cleaning(cfg, t)
-    return sc, t, c, tmp / "out"
+    f = run_faces(cfg, c)
+    return sc, t, c, tmp / "out", f
 
 
 def test_terrain_recovers_roof_pitch_and_orientation(run):
-    _, t, _, _ = run
+    _, t, _, _, _ = run
     peaks = [p["azimuth_deg"] for p in t.stats["roof_candidates"]["aspect_peaks_deg"]]
     # 44 deg rotated hip roof -> faces at ~44/134/224/314 grid deg (+ convergence ~0.2)
     for expected in (44, 134, 224, 314):
@@ -69,7 +71,7 @@ def test_terrain_recovers_roof_pitch_and_orientation(run):
 
 
 def test_cleaning_removes_spike_and_reduces_noise(run):
-    sc, t, c, _ = run
+    sc, t, c, _, _ = run
     assert c.outliers[50, 60]  # clip and full share one grid here
     assert c.stats["outliers"]["count"] <= 5
     s = c.stats["open_ground_slope_deg"]
@@ -86,7 +88,7 @@ def test_cleaning_removes_spike_and_reduces_noise(run):
 
 
 def test_outputs_written_and_nan_outside_aoi(run):
-    _, t, c, out = run
+    _, t, c, out, _ = run
     for f in (
         "dsm_clean.tif",
         "slope.tif",
@@ -99,3 +101,14 @@ def test_outputs_written_and_nan_outside_aoi(run):
         assert (out / "step02_cleaning" / f).exists()
     assert np.isnan(c.dsm_clean.data[~t.aoi]).all()
     assert not np.isnan(c.dsm_clean.data[t.aoi]).any()
+
+
+def test_faces_recovered_end_to_end(run):
+    sc, t, _, out, f = run
+    assert f.stats["faces"] == 4
+    for n in sc.normals.values():
+        assert min(p.angle_to(Plane(n, 0)) for p in f.planes.values()) < 1.0
+    kinds = f.stats["edges"]
+    assert kinds["hip"] == 4 and kinds["ridge"] == 1
+    for name in ("faces.tif", "planar.tif", "faces.json", "edges.json", "00_summary.png"):
+        assert (out / "step03_faces" / name).exists()
