@@ -38,3 +38,31 @@ diagnostics:
   # Step 3 replaces it with proper face segmentation.
   roof_min_height_m: 2.5
   roof_slope_range_deg: [15, 60]
+
+# ---------------------------------------------------------------- step 2
+cleaning:
+  # TGV² regularisation (piecewise-planar prior). Chosen by scripts/benchmark_cleaning.py:
+  # best on a synthetic roof degraded like this DSM (blurred edges + 2.5 cm waviness),
+  # confirmed on the real roof (normal scatter 3.1 -> 1.2 deg, ridges lowered ~1.5 cm).
+  tgv_alpha1: 0.05                     # first-order weight (m per pixel gradient)
+  tgv_alpha0: 0.2                      # second-order weight (change of slope)
+  tgv_max_iter: 4000
+  tgv_tol_m: 1.0e-6                    # stop when RMS change per iteration < this
+  # Outliers: local Hampel test on (data - TGV) + amplitude-relative isolation test.
+  # Validated by planting 150 spikes: 95 % recall (100 % on the roof).
+  outlier_k: 6.0
+  outlier_window_px: 7
+  outlier_max_blob_m2: 0.25            # larger deviations are real objects, not errors
+  outlier_background_px: 11
+  # Vegetation (Excess Green index on the RGB): canopy heights are not roof heights.
+  vegetation_exg_threshold: auto       # auto = Otsu threshold inside the AOI
+  # Normal-scatter check on planar roof tiles (same tiles before and after cleaning)
+  check_tile_px: 15
+  check_tile_max_resid_m: 0.03
+
+figures:
+  # Cross-section lines in AOI pixel coordinates: [col, row, azimuth_deg, length_m, label]
+  profiles:
+    - [330, 420, 44, 40, "A: SW-NE across the main roof"]
+    - [380, 330, 134, 40, "B: NW-SE along the NE ridge"]
+    - [360, 370, 44, 40, "C: through the central lantern"]

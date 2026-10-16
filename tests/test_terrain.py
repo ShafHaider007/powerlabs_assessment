@@ -11,7 +11,9 @@ from roofsolar.terrain import (
     estimate_noise,
     grid_convergence_deg,
     horn_gradients,
+    normal_scatter_deg,
     off_grid_mask,
+    planar_tiles,
     slope_deg,
     surface_normals,
 )
@@ -131,3 +133,17 @@ def test_off_grid_mask_finds_reprocessed_block():
     mask = off_grid_mask(z, 0.01, window_px=5, min_density=0.5)
     assert mask[35:55, 45:75].all()
     assert not mask[:25].any() and not mask[65:].any()
+
+
+def test_planar_tiles_and_scatter():
+    z = plane(30, 135, (60, 60))
+    tiles = planar_tiles(z, np.ones(z.shape, bool), window=15)
+    assert len(tiles) == 16
+    z2 = z.copy()
+    z2[:, 30:] = z[:, 29:30] - (z[:, 30:] - z[:, 29:30])  # fold into a ridge at column 30
+    assert len(planar_tiles(z2, np.ones(z.shape, bool), window=15)) == 16  # ridge on tile border
+    gx, gy = horn_gradients(z, DX, DY)
+    np.testing.assert_allclose(normal_scatter_deg(surface_normals(gx, gy), tiles), 0, atol=1e-6)
+    noisy = z + np.random.default_rng(0).normal(0, 0.01, z.shape)
+    gx, gy = horn_gradients(noisy, DX, DY)
+    assert normal_scatter_deg(surface_normals(gx, gy), tiles).mean() > 1.0

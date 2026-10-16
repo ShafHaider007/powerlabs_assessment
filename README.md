@@ -141,12 +141,15 @@ source .venv/bin/activate
 # Full pipeline (all implemented steps)
 python scripts/run_pipeline.py
 
-# A single step, or a custom config
-python scripts/run_pipeline.py --steps 1
+# Selected steps, or a custom config (a step re-runs the previous one if it is not selected)
+python scripts/run_pipeline.py --steps 1 2
 python scripts/run_pipeline.py --config configs/my_config.yaml
 
 # Cross-check slope/aspect against GDAL (needs gdaldem; QGIS's copy is found automatically)
 python scripts/validate_terrain_gdal.py
+
+# Re-create the evidence behind the step-2 choices (filter comparison, hole-fill test)
+python scripts/benchmark_cleaning.py --noise realistic
 ```
 
 ## Outputs
@@ -168,6 +171,20 @@ directly in QGIS.
 | `00_summary.png` … `06_data_provenance.png` | figures |
 
 ![Step 1 summary](docs/figures/step01_summary.png)
+
+**Step 2: `outputs/step02_cleaning/`**
+
+| File | Content |
+|---|---|
+| `dsm_clean.tif` | regularised DSM (TGV², piecewise-planar prior); outliers/missing re-filled |
+| `slope.tif`, `aspect.tif`, `normals.tif` | derivatives of the cleaned surface |
+| `removed.tif` | raw − cleaned (what the regularisation removed) |
+| `outliers.tif`, `filled.tif` | isolated spikes/pits found; all interpolated pixels |
+| `vegetation.tif` | canopy mask (Excess Green index, Otsu threshold) |
+| `stats.json` | before/after noise metrics, outlier counts, solver convergence |
+| `benchmark/` | method comparison results (from `benchmark_cleaning.py`) |
+
+![Step 2 summary](docs/figures/step02_summary.png)
 
 ## Configuration
 
@@ -194,8 +211,8 @@ The approach, key algorithms, assumptions, limitations and incomplete tasks will
 | Step | Status |
 |---|---|
 | 1. Terrain analysis (elevation, slope, aspect) | ✅ |
-| 2. Cleaning (noise, missing data) | ⏳ next |
-| 3. Roof face segmentation & plane fitting | ⬜ |
+| 2. Cleaning (noise, missing data) | ✅ |
+| 3. Roof face segmentation & plane fitting | ⏳ next |
 | 4. Obstruction detection | ⬜ |
 | 5. 3D roof model | ⬜ |
 | 6. Solar panel placement | ⬜ |

@@ -13,9 +13,9 @@ import json
 import logging
 
 from roofsolar.config import PROJECT_ROOT, load_config
-from roofsolar.pipeline import run_terrain
+from roofsolar.pipeline import run_cleaning, run_terrain
 
-STEPS = {1: ("terrain analysis", run_terrain)}
+STEPS = {1: ("terrain analysis", run_terrain), 2: ("cleaning", run_cleaning)}
 
 
 def main() -> None:
@@ -35,11 +35,13 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     cfg = load_config(args.config)
-    for n in args.steps:
+    prev = None  # each step receives the previous step's result (re-run if missing)
+    for n in sorted(args.steps):
         name, fn = STEPS[n]
         logging.info("=== Step %d: %s ===", n, name)
-        result = fn(cfg)
+        result = fn(cfg) if n == 1 else fn(cfg, prev if n - 1 in args.steps else None)
         print(json.dumps(result.stats, indent=2))
+        prev = result
 
 
 if __name__ == "__main__":
