@@ -6,6 +6,7 @@ paths:
   dsm_full: data/raw/dsm_full.tif      # same grid, larger extent, no NoData
   rgb: data/raw/rgb.tif                # aligned with dsm_full
   output_dir: outputs
+  obstruction_reference: data/reference/obstructions_reference.json  # hand labels (recall check)
 
 # ---------------------------------------------------------------- step 1
 terrain:
@@ -85,6 +86,35 @@ faces:
     assign_tol_m: 0.25                 # above this it is an object (chimney >= 0.3 m)
     assign_iterations: 3
     eave_band_m: 1.0                   # smeared-wall band rebuilt from the plane
+
+# ---------------------------------------------------------------- step 4
+obstructions:
+  # Raised objects: raw DSM height above the face plane. Raw noise on faces is 4.1 cm, so
+  # 0.15 m is ~3.5 sigma.
+  min_height_m: 0.15
+  open_radius_m: 0.1                   # removes 1-pixel specks before labelling
+  eave_band_m: 1.0                     # rebuilt-eave band: below-plane data there is smear
+  min_depression_m2: 0.25
+  # Glass faces: glazing frames (contrast) AND specular reflection (bright) - both required.
+  glass_min_contrast: 6.0              # median 5x5 lightness std (tiles <= 5.3, lantern >= 8.2)
+  glass_bright_l: 80.0                 # CIELAB L
+  glass_min_bright_frac: 0.10          # tiles <= ~8 %, lantern faces 10-40 %
+  # Flush objects: colour distance from the same face's tiles (Mahalanobis, MCD covariance)
+  colour_threshold: 5.0                # found all 9 reference objects (6 missed vent + flue)
+  colour_min_m2: 0.04
+  colour_max_m2: 6.0
+  colour_max_elongation: 4.0           # longer = capping / valley strip, not an object
+  colour_min_width_m: 0.2
+  dark_delta_l: -10.0                  # darker than the face -> "dark anomaly" (shadow or fitting)
+  # Classification of raised objects
+  vegetation_frac: 0.3
+  vegetation_min_height_m: 4.0
+  structure_min_m2: 2.5
+  chimney_min_height_m: 0.4
+  chimney_max_elongation: 3.0          # longer raised strips are dormer cheeks / wall smear
+  # Keep-out: the DSM smear around raised objects decays to noise level at 0.3-0.4 m
+  # (measured), which is also a sensible installation clearance.
+  buffer_m: 0.3
 
 figures:
   # Cross-section lines in AOI pixel coordinates: [col, row, azimuth_deg, length_m, label]

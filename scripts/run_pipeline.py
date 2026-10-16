@@ -13,12 +13,13 @@ import json
 import logging
 
 from roofsolar.config import PROJECT_ROOT, load_config
-from roofsolar.pipeline import run_cleaning, run_faces, run_terrain
+from roofsolar.pipeline import run_cleaning, run_faces, run_obstructions, run_terrain
 
 STEPS = {
     1: ("terrain analysis", run_terrain),
     2: ("cleaning", run_cleaning),
     3: ("roof faces", run_faces),
+    4: ("obstructions", run_obstructions),
 }
 
 

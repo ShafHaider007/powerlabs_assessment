@@ -1,0 +1,15 @@
+{
+  "description": "Hand-labelled reference of rooftop objects, read from the RGB orthophoto (data/raw/rgb.tif) by visual inspection. Positions are approximate pixel centres on the AOI grid (dsm_clipped.tif), accurate to roughly +-1 m. Used only to measure detection recall; not used by the algorithm.",
+  "match_radius_m": 0.8,
+  "objects": [
+    {"name": "white vent", "type": "fixture", "col": 302, "row": 226},
+    {"name": "dark flue", "type": "fixture", "col": 278, "row": 255},
+    {"name": "square roof window", "type": "window", "col": 312, "row": 302},
+    {"name": "double roof window", "type": "window", "col": 371, "row": 292},
+    {"name": "west skylight", "type": "window", "col": 280, "row": 342},
+    {"name": "SE skylight", "type": "window", "col": 404, "row": 370},
+    {"name": "round chimney", "type": "chimney", "col": 425, "row": 355},
+    {"name": "glass lantern", "type": "glass", "col": 345, "row": 395},
+    {"name": "pots on NE dormer", "type": "fixture", "col": 349, "row": 281}
+  ]
+}

@@ -8,7 +8,7 @@ from rasterio.crs import CRS
 
 from roofsolar.config import PROJECT_ROOT, load_config
 from roofsolar.faces import Plane
-from roofsolar.pipeline import run_cleaning, run_faces, run_terrain
+from roofsolar.pipeline import run_cleaning, run_faces, run_obstructions, run_terrain
 from roofsolar.synthetic import correlated_noise, hip_roof_scene, quantize
 
 CRS_UTM = CRS.from_epsg(32630)
@@ -58,11 +58,12 @@ def run(tmp_path_factory):
     t = run_terrain(cfg)
     c = run_cleaning(cfg, t)
     f = run_faces(cfg, c)
-    return sc, t, c, tmp / "out", f
+    o = run_obstructions(cfg, f)
+    return sc, t, c, tmp / "out", f, o
 
 
 def test_terrain_recovers_roof_pitch_and_orientation(run):
-    _, t, _, _, _ = run
+    _, t, _, _, _, _ = run
     peaks = [p["azimuth_deg"] for p in t.stats["roof_candidates"]["aspect_peaks_deg"]]
     # 44 deg rotated hip roof -> faces at ~44/134/224/314 grid deg (+ convergence ~0.2)
     for expected in (44, 134, 224, 314):
@@ -71,7 +72,7 @@ def test_terrain_recovers_roof_pitch_and_orientation(run):
 
 
 def test_cleaning_removes_spike_and_reduces_noise(run):
-    sc, t, c, _, _ = run
+    sc, t, c, _, _, _ = run
     assert c.outliers[50, 60]  # clip and full share one grid here
     assert c.stats["outliers"]["count"] <= 5
     s = c.stats["open_ground_slope_deg"]
@@ -88,7 +89,7 @@ def test_cleaning_removes_spike_and_reduces_noise(run):
 
 
 def test_outputs_written_and_nan_outside_aoi(run):
-    _, t, c, out, _ = run
+    _, t, c, out, _, _ = run
     for f in (
         "dsm_clean.tif",
         "slope.tif",
@@ -104,7 +105,7 @@ def test_outputs_written_and_nan_outside_aoi(run):
 
 
 def test_faces_recovered_end_to_end(run):
-    sc, t, _, out, f = run
+    sc, t, _, out, f, _ = run
     assert f.stats["faces"] == 4
     for n in sc.normals.values():
         assert min(p.angle_to(Plane(n, 0)) for p in f.planes.values()) < 1.0
@@ -112,3 +113,12 @@ def test_faces_recovered_end_to_end(run):
     assert kinds["hip"] == 4 and kinds["ridge"] == 1
     for name in ("faces.tif", "planar.tif", "faces.json", "edges.json", "00_summary.png"):
         assert (out / "step03_faces" / name).exists()
+
+
+def test_obstructions_end_to_end(run):
+    sc, t, _, out, f, o = run
+    assert (o.classes[sc.chimney] > 0).mean() > 0.8  # the chimney is an obstruction
+    assert not o.usable[sc.chimney].any()
+    assert 0.7 < o.stats["usable_share_of_faces"] < 1.0
+    for name in ("obstructions.tif", "usable.tif", "obstructions.json", "00_summary.png"):
+        assert (out / "step04_obstructions" / name).exists()

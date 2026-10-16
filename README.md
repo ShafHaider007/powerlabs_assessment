@@ -55,7 +55,8 @@ solar panels on the usable roof area.
 ├── configs/
 │   └── default.yaml        # every threshold and parameter (no magic numbers in code)
 ├── data/
-│   └── raw/                # input rasters (read-only)
+│   ├── raw/                # input rasters (read-only)
+│   └── reference/          # hand-labelled rooftop objects (recall check only)
 ├── docs/
 │   ├── Technical Assessment.pdf
 │   ├── assessment/         # brief split by section (objective, data, tasks, ...)
@@ -153,6 +154,9 @@ python scripts/benchmark_cleaning.py --noise realistic
 
 # Step-3 evidence: accuracy on a synthetic roof + stability on the real roof
 python scripts/validate_faces.py
+
+# Step-4 evidence: threshold sensitivity (recall vs usable area)
+python scripts/validate_obstructions.py
 ```
 
 ## Outputs
@@ -203,6 +207,18 @@ directly in QGIS.
 
 ![Step 3 summary](docs/figures/step03_summary.png)
 
+**Step 4: `outputs/step04_obstructions/`**
+
+| File | Content |
+|---|---|
+| `obstructions.tif` | obstruction class per pixel (dormer, chimney, vent, vegetation, glass, roof window, dark anomaly) |
+| `keepout.tif`, `usable.tif` | 0.3 m keep-out around obstructions; usable roof = faces − obstructions − keep-out |
+| `height_above_roof.tif` | raw DSM height above the roof plane (raised-object evidence) |
+| `colour_distance.tif` | colour anomaly vs the face's tiles (flush-object evidence) |
+| `obstructions.json` | every object (class, evidence, confidence, area, height) + usable area per face |
+
+![Step 4 summary](docs/figures/step04_summary.png)
+
 ## Configuration
 
 All parameters (slope limits, obstruction height threshold, panel dimensions, setbacks, ...) live in
@@ -230,7 +246,7 @@ The approach, key algorithms, assumptions, limitations and incomplete tasks will
 | 1. Terrain analysis (elevation, slope, aspect) | ✅ |
 | 2. Cleaning (noise, missing data) | ✅ |
 | 3. Roof face segmentation & plane fitting | ✅ |
-| 4. Obstruction detection | ⏳ next |
-| 5. 3D roof model | ⬜ |
+| 4. Obstruction detection | ✅ |
+| 5. 3D roof model | ⏳ next |
 | 6. Solar panel placement | ⬜ |
 | 7. Validation & write-up | ⬜ |

@@ -559,3 +559,123 @@ def plot_faces(t, prev, res, trace, profiles, out: Path) -> None:
     fig.tight_layout()
     fig.savefig(out / "02_profiles.png", dpi=100)
     plt.close(fig)
+
+
+OBSTRUCTION_COLORS = {
+    1: "orange",
+    2: "red",
+    3: "magenta",
+    4: "green",
+    5: "cyan",
+    6: "lime",
+    7: "yellow",
+    8: "blue",
+}
+
+
+def plot_obstructions(t, fr, res, det, ref_path, out: Path) -> None:
+    """Write step-4 figures: detections on RGB, evidence maps, usable area."""
+    import json as _json
+
+    from matplotlib.colors import ListedColormap
+
+    from roofsolar.obstructions import CLASSES
+
+    pixel = res.hag.pixel_size
+    ext = _extent(res.classes.shape, pixel)
+    zoom = _zoom_window(fr.candidate, pixel)
+    faces = fr.labels > 0
+
+    def setzoom(a):
+        a.set_xlim(zoom[0], zoom[1])
+        a.set_ylim(zoom[2], zoom[3])
+
+    ref = None
+    if ref_path and Path(ref_path).exists():
+        ref = _json.loads(Path(ref_path).read_text())
+    found = {
+        o["name"]: o["found"] for o in (res.stats["reference_recall"] or {}).get("objects", [])
+    }
+
+    def markers(a):
+        if not ref:
+            return
+        for o in ref["objects"]:
+            ok = found.get(o["name"], False)
+            a.plot(
+                (o["col"] + 0.5) * pixel[0],
+                (o["row"] + 0.5) * pixel[1],
+                marker="o" if ok else "X",
+                ms=11,
+                mfc="none",
+                mec="white" if ok else "red",
+                mew=1.8,
+            )
+
+    fig, ax = plt.subplots(2, 2, figsize=(18, 17))
+    # (0,0) RGB + obstruction outlines by class
+    ax[0, 0].imshow(t.rgb, extent=ext)
+    for code, col in OBSTRUCTION_COLORS.items():
+        m = res.classes == code
+        if m.any():
+            _outline(ax[0, 0], m, pixel, color=col, lw=1.4)
+            n = res.stats["by_class"].get(CLASSES[code], {}).get("count", 0)
+            ax[0, 0].plot([], [], color=col, lw=3, label=f"{CLASSES[code]} ({n})")
+    markers(ax[0, 0])
+    ax[0, 0].plot([], [], "o", mfc="none", mec="white", label="reference object: found")
+    ax[0, 0].plot([], [], "X", mfc="none", mec="red", label="reference object: missed")
+    ax[0, 0].legend(loc="lower left", fontsize=8, framealpha=0.85)
+    rc = res.stats["reference_recall"]
+    _style(
+        ax[0, 0],
+        "Obstructions" + (f" (reference recall {rc['found']}/{rc['total']})" if rc else ""),
+    )
+    # (0,1) height above roof plane (raw DSM)
+    im = ax[0, 1].imshow(
+        np.where(fr.candidate, res.hag.data, np.nan), cmap="RdBu_r", vmin=-0.5, vmax=0.5, extent=ext
+    )
+    _outline(ax[0, 1], det.raised, pixel, color="k", lw=0.8)
+    fig.colorbar(im, ax=ax[0, 1], shrink=0.7, label="raw DSM - roof plane (m)")
+    _style(ax[0, 1], "Evidence 1: height above roof plane (black = raised > 0.15 m)")
+    # (1,0) colour distance
+    im = ax[1, 0].imshow(
+        np.where(faces, det.colour_dist, np.nan), cmap="magma", vmin=0, vmax=10, extent=ext
+    )
+    _outline(ax[1, 0], det.colour, pixel, color="lime", lw=1)
+    _outline(ax[1, 0], det.glass, pixel, color="cyan", lw=1)
+    fig.colorbar(im, ax=ax[1, 0], shrink=0.7, label="colour distance from face tiles")
+    _style(ax[1, 0], "Evidence 2: colour anomaly (lime) and glass faces (cyan)")
+    # (1,1) usable area
+    img = np.zeros(res.classes.shape)
+    img[fr.candidate & ~faces] = 1
+    img[res.keepout] = 2
+    img[res.classes > 0] = 3
+    img[res.usable] = 4
+    cmap = ListedColormap(["white", "lightgrey", "salmon", "firebrick", "seagreen"])
+    ax[1, 1].imshow(
+        np.where(fr.candidate | faces, img, np.nan),
+        cmap=cmap,
+        vmin=-0.5,
+        vmax=4.5,
+        extent=ext,
+        interpolation="nearest",
+    )
+    for lab_, col in (
+        ("usable", "seagreen"),
+        ("keep-out buffer", "salmon"),
+        ("obstruction", "firebrick"),
+        ("building, not a face", "lightgrey"),
+    ):
+        ax[1, 1].plot([], [], "s", color=col, ms=10, label=lab_)
+    ax[1, 1].legend(loc="lower left", fontsize=9)
+    s = res.stats
+    _style(
+        ax[1, 1],
+        f"Usable roof: {s['usable_3d_m2']:.0f} m² sloped "
+        f"({100 * s['usable_share_of_faces']:.0f}% of face area)",
+    )
+    for a in ax.ravel():
+        setzoom(a)
+    fig.tight_layout()
+    fig.savefig(out / "00_summary.png", dpi=100)
+    plt.close(fig)

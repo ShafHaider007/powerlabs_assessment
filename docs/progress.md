@@ -6,9 +6,9 @@ One entry per step. Each entry covers what was done, outputs, decisions and why,
 |---|---|
 | 1. Load data, then elevation, slope, aspect | ✅ Done |
 | 2. Clean noise, fill missing data | ✅ Done |
-| 3. Roof face segmentation and plane fitting | ✅ Done (awaiting approval) |
-| 4. Obstruction detection | ⏳ Next |
-| 5. 3D roof model | ⬜ |
+| 3. Roof face segmentation and plane fitting | ✅ Done |
+| 4. Obstruction detection | ✅ Done (awaiting approval) |
+| 5. 3D roof model | ⏳ Next |
 | 6. Solar panel placement | ⬜ |
 | 7. Validation, README, write-up, video | ⬜ |
 
@@ -18,6 +18,8 @@ One entry per step. Each entry covers what was done, outputs, decisions and why,
 - Heights are metres above sea level in EPSG:32630; the vertical and horizontal units are both metres.
 - Roofs are piecewise planar (the TGV² prior in step 2 and plane fitting in step 3 rely on this).
 - Noise model for tuning: measured from this DSM (step 2 §2.1); parameters may need retuning for other data.
+- Obstruction keep-out buffer is 0.3 m (measured DSM smear width; also a typical installation clearance).
+- Missing a skylight or flue under a panel costs more than losing some panel area, so obstruction detection favours recall.
 
 ---
 
@@ -345,3 +347,90 @@ Reconstructed surface = each face pixel takes its plane height.
 - The roof outline is still the pixel boundary of the footprint threshold. Straight, regularised outline edges are done when building polygons for the 3D model (step 5).
 - Region growing is order-dependent; this is mitigated by the merge/assignment stages and quantified by the stability test.
 - Dormer roofs are mostly left as "not a face" (too small or cluttered). They are not usable for standard panels anyway.
+
+---
+
+## Step 4: Obstruction detection and usable area
+
+**Run:** `python scripts/run_pipeline.py --steps 1 2 3 4` (step 4 itself takes 0.6 s)
+**Evidence:** `python scripts/validate_obstructions.py` (threshold sensitivity); recall against `data/reference/obstructions_reference.json` (9 hand-labelled objects) is reported in `stats.json`
+**Code:** `src/roofsolar/obstructions.py`, `pipeline.py::run_obstructions`
+**Outputs:** `outputs/step04_obstructions/`
+- `obstructions.tif` (class codes), `keepout.tif`, `usable.tif`
+- `height_above_roof.tif`, `colour_distance.tif`
+- `obstructions.json` (every object: class, evidence, confidence, area, height; usable area per face), `stats.json`
+- `00_summary.png`, `validation/sensitivity.json`
+
+### 4.1 Two kinds of obstruction, two kinds of evidence
+| Kind | Examples | Evidence | Why |
+|---|---|---|---|
+| Raised | dormers, chimneys, flues, vents, overhanging tree | **raw** DSM minus the face plane (non-face pixels use the nearest face's plane) | they stand out of the roof plane. The raw DSM is used because the cleaned DSM softens small objects (step 2 rule) |
+| Flush | roof windows, skylights, small fittings | RGB colour anomaly vs the tiles of the **same face** | they lie in the plane and are invisible in height |
+| Glass faces | the lantern pyramid | face-level glazing test | planar, so step 3 made them faces, but they cannot carry panels |
+
+### 4.2 Method and measured parameters
+- **Height:** raw-DSM noise on faces σ = 4.2 cm, so the threshold is **0.15 m (3.5σ)**. A 0.1 m opening removes 1-pixel specks. Below-plane data in the 1 m eave band is the smear rebuilt in step 3, not an obstruction.
+- **Colour:**
+  - CIELAB (lightness separated from colour).
+  - Mahalanobis distance from the face's median colour, with one robust covariance (**Minimum Covariance Determinant**, which ignores the windows, shadows and capping in the sample) for all tiles.
+  - Per-face location, because one global model flagged a whole brown-tiled roof section (17–20 m²) as anomalous.
+  - Threshold 5.
+  - Then a compactness filter (area 0.04–6 m², elongation ≤ 4, width ≥ 0.2 m), so that ridge/hip capping (lighter tiles in long thin lines) and valley strips are ignored while compact windows and vents are kept.
+- **Glass faces:** median 5×5 lightness std > 6 (glazing frames; tiles ≤ 5.3, lantern ≥ 8.2) **and** more than 10 % of pixels with L > 80 (specular reflection; lantern p90 = 86–94, tiles ≤ 82). Both cues are required, so a shaded face (high contrast, dark) and a sunlit face (bright, smooth) are excluded. Exactly the 4 lantern faces qualify; the brown face does not.
+- **Classification of raised objects:**
+  - vegetation: canopy share > 30 % or > 4 m above the roof
+  - dormer/structure: ≥ 2.5 m², or elongated (dormer cheek / wall smear strips)
+  - chimney/small structure: compact and ≥ 0.4 m high
+  - vent: otherwise
+  - lantern part: enclosed by glass faces (the apex finial)
+- **Colour-only objects:** "roof window / skylight / fitting" (medium confidence); darker than the face means "dark anomaly (shadow or dark fitting)" (low confidence).
+- **Keep-out:** every obstruction grown by **0.3 m**. The DSM smear around raised objects decays to noise (median < 1 cm) at **0.3–0.4 m** (measured at 0.1 m steps). **Usable = faces − obstructions − keep-out.**
+
+### 4.3 Decisions and the evidence behind them
+| Question | Finding | Decision |
+|---|---|---|
+| Shadow or dark object? | the dark flue (ΔL −44.6, colour shift 8.5) is **colour-identical** to cast shadows (ΔL −26 to −47, shift 1–17). Shadows here turn bluer (lit by sky), so chromaticity does not separate them. A caster-distance rule also failed: the flue is 1.4 m from a dormer, like many shadows | the classes cannot be separated with these data, so **asymmetric costs** decide: a false keep-out loses a little area, a missed flue or skylight under a panel is a failed installation. Keep **every** compact colour anomaly as keep-out, labelled by confidence. Cost: 5.4 % of face area (12.6 m² from low-confidence dark anomalies) |
+| Split merged NE dormers? | provider smoothing bridges the ~1 m gaps between dormers even above 0.5 m; watershed on height cores still merged them and broke the wall smear into dozens of fragments | keep connected components and report "dormer / structure" groups honestly. The keep-out mask, which is what the brief needs, is unaffected |
+| Dormers "missed"? | dormer roofs were segmented as small faces in step 3 (correct geometry; not raised relative to their own plane) | left as faces; they are too small for standard panels and step 6's minimum-area rule rejects them |
+| Robust covariance on a uniform roof | the end-to-end test (uniform synthetic colour) crashed MCD (singular covariance) | eigenvalue floor of 1 CIELAB unit (below the JND dE ≈ 2.3), fallback to the plain covariance. A first version **added** the floor to the variances, which shrank all distances and cut recall from 9/9 to 7/9; flooring eigenvalues leaves a well-conditioned covariance unchanged |
+
+### 4.4 Validation
+**Recall against the hand-labelled reference** (9 objects read from the orthophoto: 2 roof windows, 2 skylights, 1 chimney, 1 lantern, 3 fittings): **9/9**.
+- Precision cannot be measured without full labels. Visual inspection shows that most of the extra colour detections are cast shadows and staining; they are kept as low-confidence keep-outs by design.
+
+**Sensitivity** (`validate_obstructions.py`, one parameter at a time):
+
+| parameter | values → recall / usable share |
+|---|---|
+| colour threshold | 4 → 9/9, 77 % · **5 → 9/9, 81 %** · 6 → 7/9, 84 % · 7 → 6/9, 85 % |
+| height threshold | 0.10 → 9/9, 78 % · **0.15 → 9/9, 81 %** · 0.20 → 9/9, 82 % · 0.30 → 9/9, 83 % |
+| keep-out buffer | 0 → 91 % · 0.2 → 85 % · **0.3 → 81 %** · 0.5 → 73 % (recall unaffected) |
+
+- The colour threshold of 5 is the highest value with full recall.
+- The height threshold is robust.
+- The buffer is the main area driver, which is why it is set from the measured smear width rather than guessed.
+
+**Unit tests (synthetic roof):**
+- the chimney is found as a compact tall object
+- a painted roof window is found from colour
+- a thin bright capping line is *not* found
+- a glazed face is found as glass and a tiled face is not
+- the compactness filter and keep-out buffer behave as designed
+
+The end-to-end test covers steps 1→4.
+
+### 4.5 Results (`stats.json`)
+| | |
+|---|---|
+| Objects | 58: glass lantern (2 parts, 33.1 m²), 5 dormer/structure groups (29.9 m²), 7 chimneys/small structures, 1 vent, 4 vegetation, 18 roof windows/skylights/fittings, 21 dark anomalies |
+| Face area | 457 m² plan |
+| Obstructions on faces | 42.7 m² plan |
+| Obstructions + keep-out | 87.8 m² plan |
+| **Usable roof** | **369.5 m² plan = 458.6 m² sloped, 81 % of face area** |
+
+### 4.6 Limitations
+- Shadows vs dark fittings cannot be separated from one RGB image; the conservative choice costs about 5 % of area.
+- Adjacent dormers merge into groups (DSM smoothing).
+- The class labels for some west-wing structures (chimney vs dormer part) are uncertain; the keep-out is unaffected.
+- The reference is small (9 objects) and hand-labelled to ±1 m, so recall is indicative, not a statistical estimate.
+- No shading or irradiance analysis: shadows reduce yield but are not treated as geometric obstructions (beyond the conservative keep-out).
