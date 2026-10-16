@@ -4,8 +4,30 @@ Rebuilds a geometrically consistent 3D roof from a **Digital Surface Model (DSM)
 imagery**, finds rooftop obstructions (chimneys, skylights, roof windows), and places standard-size
 solar panels on the usable roof area.
 
-> **Status:** in progress. Pipeline steps are added one at a time; see [Pipeline status](#pipeline-status)
-> and [`docs/progress.md`](docs/progress.md).
+![Result overview](docs/figures/overview.png)
+
+## Results at a glance
+
+| | |
+|---|---|
+| Roof faces | **25 planar faces**, plane RMSE median 2.6 cm; sharp ridges/eaves rebuilt (synthetic: creases 6.8 → <1 cm) |
+| Obstructions | dormers, chimneys, vents, roof windows, skylights, glass lantern; **9/9** hand-labelled objects found |
+| Usable roof | 459 m² sloped (81 % of face area) after a 0.3 m keep-out around obstructions |
+| 3D model | vector model, neighbouring faces consistent to 4·10⁻¹³ m; PLY / GLB / GeoJSON / interactive HTML |
+| Panels | **45 × 430 Wp = 19.35 kWp**, ≈ 18,400 kWh/yr (first-order) on 6 suitable SE/SW faces |
+| Layout checks | 0 overlaps, gap ≥ 0.02 m, edge setback ≥ 0.30 m, 0 raster violations |
+| Quality | 110 tests; slope/aspect match GDAL to 4·10⁻⁶°; one command, ≈ 47 s |
+
+## Deliverables
+
+| Brief item | Where |
+|---|---|
+| Python source | `src/roofsolar/` (package), `scripts/` (entry points), `tests/` |
+| README: setup, dependencies, how to run | this file: [Setup](#setup), [Requirements](#requirements), [Running the solution](#running-the-solution) |
+| Visual results: roof, obstructions, panels | [Outputs](#outputs), `docs/figures/`, `outputs/step06_panels/roof_with_panels.html` |
+| Brief technical explanation | [`docs/technical_report.md`](docs/technical_report.md) (approach, algorithms, assumptions, limitations, incomplete tasks) |
+| Detailed evidence per step | [`docs/progress.md`](docs/progress.md) |
+| Video demonstration | script and storyboard: [`docs/video_script.md`](docs/video_script.md) |
 
 ---
 
@@ -30,22 +52,22 @@ solar panels on the usable roof area.
  DSM + RGB
     │
     ▼
- 1. Terrain analysis ──── elevation, slope, aspect (azimuth)
+ 1. Terrain analysis ── Horn slope/aspect (true north), ground model, height above ground
     │
     ▼
- 2. Cleaning ──────────── noise removal, fill missing (NoData) pixels
+ 2. Cleaning ────────── TGV² regularisation, biharmonic hole filling, spike removal
     │
     ▼
- 3. Roof faces ────────── segment faces, fit a plane per face, consistent surface
+ 3. Roof faces ──────── region growing → robust TLS planes → merging → k-planes (sharp creases)
     │
     ▼
- 4. Obstructions ──────── chimneys / skylights / windows → excluded from usable area
+ 4. Obstructions ────── height above plane + per-face colour anomaly + glass test → keep-out
     │
     ▼
- 5. 3D model ──────────── triangulated roof mesh (interactive + exported)
+ 5. 3D model ────────── noded coverage → plane-intersection snapping → mesh + walls + objects
     │
     ▼
- 6. Solar layout ──────── standard panels packed on suitable faces, avoiding obstructions
+ 6. Solar layout ────── irradiation-based suitability → DP row packing in face-plane coordinates
 ```
 
 ## Repository structure
@@ -66,6 +88,16 @@ solar panels on the usable roof area.
 ├── outputs/                # generated results (git-ignored, reproducible)
 ├── scripts/                # command-line entry points
 ├── src/roofsolar/          # library: one module per pipeline stage
+│   ├── raster_io.py        #   reading, grid validation, alignment, writing
+│   ├── terrain.py          #   step 1: gradients, slope, aspect, ground, noise
+│   ├── cleaning.py         #   step 2: TGV², fill, outliers, vegetation index
+│   ├── faces.py            #   step 3: segmentation, planes, adjacency
+│   ├── obstructions.py     #   step 4: raised / flush / glass detection, usable mask
+│   ├── model3d.py          #   step 5: vector model, consistent vertices, mesh
+│   ├── solar.py, panels.py #   step 6: irradiation model, placement
+│   ├── synthetic.py        #   synthetic roofs with ground truth (tests, benchmarks)
+│   ├── pipeline.py         #   step runners (inputs → outputs, stats, figures)
+│   └── viz.py              #   figures
 ├── tests/                  # pytest unit tests
 ├── pyproject.toml          # package metadata, dependencies, tool config
 └── requirements.txt        # exact pinned versions for reproducibility
@@ -139,7 +171,7 @@ Stored in `data/raw/`, all on the same 0.1 m grid in **WGS 84 / UTM zone 30N (EP
 ```bash
 source .venv/bin/activate
 
-# Full pipeline (all implemented steps)
+# Full pipeline: steps 1-6 (about 47 s), outputs in outputs/stepNN_*/
 python scripts/run_pipeline.py
 
 # Selected steps, or a custom config (a step re-runs the previous one if it is not selected)
@@ -261,9 +293,10 @@ ruff format .       # format
 
 ## Technical explanation
 
-The approach, key algorithms, assumptions, limitations and incomplete tasks will be documented in
-`docs/technical_report.md` as the work progresses. Per-step decisions are logged in
-[`docs/progress.md`](docs/progress.md).
+**[`docs/technical_report.md`](docs/technical_report.md)** gives the approach, key algorithms and
+why they were chosen, assumptions, a validation summary, limitations and incomplete tasks.
+[`docs/progress.md`](docs/progress.md) has the detailed log of every step: data findings,
+alternatives compared, bugs found and fixed, and all validation numbers.
 
 ## Pipeline status
 
@@ -275,4 +308,4 @@ The approach, key algorithms, assumptions, limitations and incomplete tasks will
 | 4. Obstruction detection | ✅ |
 | 5. 3D roof model | ✅ |
 | 6. Solar panel placement | ✅ |
-| 7. Validation & write-up | ⏳ next |
+| 7. Validation & write-up | ✅ |
