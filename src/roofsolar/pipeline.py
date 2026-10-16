@@ -15,7 +15,7 @@ from rasterio.windows import Window
 from scipy import ndimage as ndi
 from skimage.filters import threshold_otsu
 
-from roofsolar import cleaning, faces, terrain, viz
+from roofsolar import cleaning, faces, obstructions, terrain, viz
 from roofsolar.raster_io import Raster, crop, read_raster, window_of, write_raster
 
 log = logging.getLogger(__name__)
@@ -634,6 +634,135 @@ def run_faces(cfg: dict[str, Any], prev: CleaningResult | None = None) -> FacesR
         "Step 3: %d faces, %.0f%% of building, %.1f s",
         len(planes),
         100 * stats["coverage_of_candidate"],
+        seconds,
+    )
+    return res
+
+
+@dataclass
+class ObstructionResult:
+    """Step-4 outputs on the AOI grid."""
+
+    classes: np.ndarray  # uint8 obstruction class (see obstructions.CLASSES), 0 = none
+    keepout: np.ndarray  # bool: obstructions grown by the buffer, on faces
+    usable: np.ndarray  # bool: face pixels free of obstructions and keep-out
+    hag: Raster  # raw height above the roof plane (m)
+    objects: list[dict]
+    face_usable: list[dict]
+    stats: dict[str, Any]
+    faces: FacesResult | None = None
+
+
+def run_obstructions(cfg: dict[str, Any], prev: FacesResult | None = None) -> ObstructionResult:
+    """Step 4: detect raised, flush and glass obstructions; derive the usable roof area."""
+    if prev is None or prev.cleaning is None:
+        prev = run_faces(cfg)
+    c = prev.cleaning
+    t = c.terrain
+    ocfg = cfg["obstructions"]
+    out = Path(cfg["paths"]["output_dir"]) / "step04_obstructions"
+    out.mkdir(parents=True, exist_ok=True)
+    pixel = t.inputs.full.pixel_size
+    cell = pixel[0] * pixel[1]
+    labels, building = prev.labels, prev.candidate
+
+    t0 = time.perf_counter()
+    det = obstructions.detect(t.elevation.data, t.rgb, labels, prev.planes, building, pixel, ocfg)
+    classes, objects = obstructions.classify(det, labels, c.vegetation, pixel, ocfg)
+    keepout, usable = obstructions.usable_mask(labels, classes > 0, pixel, ocfg["buffer_m"])
+    seconds = time.perf_counter() - t0
+
+    # --- per-face usable area -------------------------------------------------------------
+    face_usable = []
+    for f in prev.face_table:
+        m = labels == f["id"]
+        u = usable & m
+        cos = max(prev.planes[f["id"]].normal[2], 1e-6)
+        face_usable.append(
+            {
+                "id": f["id"],
+                "slope_deg": f["slope_deg"],
+                "aspect_deg": f["aspect_deg"],
+                "area_3d_m2": f["area_3d_m2"],
+                "usable_3d_m2": round(float(u.sum() * cell / cos), 2),
+                "usable_share": round(float(u.sum() / max(m.sum(), 1)), 3),
+                "glass": bool(det.glass[m].mean() > 0.5),
+            }
+        )
+
+    # --- recall against the hand-labelled reference (if available) -------------------------
+    recall = None
+    ref_path = cfg["paths"].get("obstruction_reference")
+    if ref_path and Path(ref_path).exists():
+        ref = json.loads(Path(ref_path).read_text())
+        dist = ndi.distance_transform_edt(classes == 0) * pixel[0]
+        hits = [
+            {
+                "name": o["name"],
+                "type": o["type"],
+                "found": bool(dist[o["row"], o["col"]] <= ref["match_radius_m"]),
+            }
+            for o in ref["objects"]
+        ]
+        recall = {"found": sum(h["found"] for h in hits), "total": len(hits), "objects": hits}
+
+    by_class: dict[str, dict] = {}
+    for o in objects:
+        d = by_class.setdefault(o["class"], {"count": 0, "area_m2": 0.0})
+        d["count"] += 1
+        d["area_m2"] = round(d["area_m2"] + o["area_m2"], 2)
+    face_px = labels > 0
+    stats = {
+        "seconds": round(seconds, 1),
+        "objects": len(objects),
+        "by_class": by_class,
+        "raw_noise_on_faces_m": round(
+            float(1.4826 * np.nanmedian(np.abs(det.hag[face_px] - np.nanmedian(det.hag[face_px])))),
+            4,
+        ),
+        "face_area_plan_m2": round(float(face_px.sum() * cell), 1),
+        "obstruction_on_faces_plan_m2": round(float(((classes > 0) & face_px).sum() * cell), 1),
+        "keepout_plan_m2": round(float((keepout | ((classes > 0) & face_px)).sum() * cell), 1),
+        "usable_plan_m2": round(float(usable.sum() * cell), 1),
+        "usable_3d_m2": round(sum(f["usable_3d_m2"] for f in face_usable), 1),
+        "usable_share_of_faces": round(float(usable.sum() / max(face_px.sum(), 1)), 3),
+        "keepout_from_low_confidence_m2": round(
+            float(
+                (
+                    obstructions.usable_mask(labels, classes == 7, pixel, ocfg["buffer_m"])[0]
+                    | ((classes == 7) & face_px)
+                ).sum()
+                * cell
+            ),
+            1,
+        ),
+        "reference_recall": recall,
+    }
+
+    ref_r = t.elevation
+    res = ObstructionResult(
+        classes, keepout, usable, replace(ref_r, data=det.hag), objects, face_usable, stats, prev
+    )
+    write_raster(out / "obstructions.tif", replace(ref_r, data=classes), nodata=None)
+    write_raster(out / "keepout.tif", replace(ref_r, data=keepout.astype("uint8")), nodata=None)
+    write_raster(out / "usable.tif", replace(ref_r, data=usable.astype("uint8")), nodata=None)
+    write_raster(out / "height_above_roof.tif", replace(ref_r, data=det.hag.astype("float32")))
+    write_raster(
+        out / "colour_distance.tif",
+        replace(ref_r, data=np.where(face_px, det.colour_dist, np.nan).astype("float32")),
+    )
+    (out / "obstructions.json").write_text(
+        json.dumps(
+            {"classes": obstructions.CLASSES, "objects": objects, "faces": face_usable}, indent=2
+        )
+    )
+    (out / "stats.json").write_text(json.dumps(stats, indent=2))
+    viz.plot_obstructions(t, prev, res, det, ref_path, out)
+    log.info(
+        "Step 4: %d obstructions, usable %.0f m2 (%.0f%% of faces), %.1f s",
+        len(objects),
+        stats["usable_3d_m2"],
+        100 * stats["usable_share_of_faces"],
         seconds,
     )
     return res
