@@ -1213,6 +1213,7 @@ def run_panels(cfg: dict[str, Any], prev: ModelResult | None = None) -> PanelRes
     (out / "faces.json").write_text(json.dumps(rows, indent=2, default=str))
     (out / "stats.json").write_text(json.dumps(stats, indent=2))
     viz.plot_panels(res, fr, om, t, out)
+    viz.plot_overview(res, fr, om, t, out)
     log.info(
         "Step 6: %d panels (%.1f kWp) on %d faces, ~%d kWh/yr, %.1f s",
         n,

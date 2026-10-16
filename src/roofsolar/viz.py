@@ -930,3 +930,63 @@ def plot_panels(res, fr, om, t, out: Path) -> None:
     fig.tight_layout()
     fig.savefig(out / "01_3d_panels.png", dpi=100)
     plt.close(fig)
+
+
+def plot_overview(res, fr, om, t, out: Path) -> None:
+    """One-page result: reconstructed faces, obstructions + usable area, panel layout."""
+    from matplotlib.colors import ListedColormap
+    from matplotlib.patches import Polygon as MplPolygon
+
+    pixel = om.hag.pixel_size
+    ext = _extent(fr.labels.shape, pixel)
+    zoom = _zoom_window(fr.candidate, pixel)
+    labels = fr.labels
+    fig, ax = plt.subplots(1, 3, figsize=(24, 8.5))
+    # (a) faces by aspect over the RGB
+    asp = np.full(labels.shape, np.nan)
+    for f in fr.face_table:
+        asp[labels == f["id"]] = f["aspect_deg"]
+    ax[0].imshow(t.rgb, extent=ext)
+    ax[0].imshow(asp, cmap="hsv", vmin=0, vmax=360, alpha=0.55, extent=ext, interpolation="nearest")
+    for k in fr.planes:
+        _outline(ax[0], labels == k, pixel, color="white", lw=0.6)
+    _style(ax[0], f"1. Reconstructed roof: {len(fr.planes)} planar faces (colour = aspect)")
+    # (b) obstructions and usable area
+    img = np.zeros(labels.shape)
+    img[labels > 0] = 3
+    img[om.keepout] = 2
+    img[(om.classes > 0)] = 1
+    ax[1].imshow(t.rgb, extent=ext)
+    ax[1].imshow(
+        np.where(img > 0, img, np.nan),
+        cmap=ListedColormap(["firebrick", "salmon", "#7fc97f"]),
+        vmin=0.5,
+        vmax=3.5,
+        alpha=0.6,
+        extent=ext,
+        interpolation="nearest",
+    )
+    s4 = om.stats
+    _style(
+        ax[1],
+        f"2. Obstructions (red) + keep-out; usable {s4['usable_3d_m2']:.0f} m² "
+        f"(reference recall {s4['reference_recall']['found']}/"
+        f"{s4['reference_recall']['total']})"
+        if s4["reference_recall"]
+        else "2. Obstructions and usable area",
+    )
+    # (c) panels
+    ax[2].imshow(t.rgb, extent=ext)
+    for p in res.panels:
+        xy = np.array(p["plan"].exterior.coords)
+        ax[2].add_patch(
+            MplPolygon(np.c_[xy[:, 0], -xy[:, 1]], closed=True, fc="#1b2a6b", ec="white", lw=0.6)
+        )
+    s = res.stats
+    _style(ax[2], f"3. {s['panels']} panels, {s['kwp']} kWp, ~{s['annual_kwh_estimate']:,} kWh/yr")
+    for a in ax:
+        a.set_xlim(zoom[0], zoom[1])
+        a.set_ylim(zoom[2], zoom[3])
+    fig.tight_layout()
+    fig.savefig(out / "overview.png", dpi=100)
+    plt.close(fig)
