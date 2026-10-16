@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Generated outputs (regenerate with the pipeline)
+outputs/*
+!outputs/.gitkeep
+
+# GDAL side files
+*.aux.xml
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/

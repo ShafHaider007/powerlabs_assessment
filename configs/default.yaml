@@ -1,0 +1,10 @@
+# Pipeline configuration. Every tunable value lives here, not in the code.
+# Units: metres and degrees unless noted otherwise.
+
+paths:
+  dsm: data/raw/dsm_clipped.tif
+  dsm_full: data/raw/dsm_full.tif
+  rgb: data/raw/rgb.tif
+  output_dir: outputs
+
+# Filled in as each step is implemented.
