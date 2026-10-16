@@ -21,6 +21,8 @@ class Scene:
     wall: np.ndarray  # pixels next to the footprint boundary (eave + wall)
     chimney: np.ndarray  # chimney mask
     pixel: float
+    faces: np.ndarray | None = None  # 0 = not roof, 1..4 = hip faces (chimney excluded)
+    normals: dict | None = None  # face id -> true unit normal (east, north, up)
 
 
 def hip_roof_scene(
@@ -59,7 +61,25 @@ def hip_roof_scene(
     cu, cv = length_m / 4, width_m / 4
     chimney = (np.abs(u - cu) < cl / 2) & (np.abs(v - cv) < cw / 2)
     z = np.where(chimney, z[chimney].max() + ch, z)
-    return Scene(z, footprint, crease, wall, chimney, pixel)
+
+    # Faces: which footprint edge is nearest (+u, -u, +v, -v ends).
+    dists = np.stack([length_m / 2 - u, length_m / 2 + u, width_m / 2 - v, width_m / 2 + v])
+    faces = np.where(footprint & ~chimney, np.argmin(dists, axis=0) + 1, 0)
+    t = np.tan(np.radians(pitch_deg))
+    # Height rises away from each edge: grad z = t * (inward edge normal) in (east, north).
+    inward = {  # inward direction of each edge in local (u, v), rotated to (east, north)
+        1: (-1, 0),
+        2: (1, 0),
+        3: (0, -1),
+        4: (0, 1),
+    }
+    normals = {}
+    for k, (iu, iv) in inward.items():
+        ge = t * (iu * np.cos(a) + iv * np.sin(a))  # d/dx of z (east)
+        gn = t * (-iu * np.sin(a) + iv * np.cos(a))  # d/dy of z (north)
+        n = np.array([-ge, -gn, 1.0])
+        normals[k] = n / np.linalg.norm(n)
+    return Scene(z, footprint, crease, wall, chimney, pixel, faces, normals)
 
 
 def correlated_noise(
