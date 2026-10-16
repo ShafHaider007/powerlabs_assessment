@@ -8,12 +8,14 @@ One entry per step. Each entry covers what was done, outputs, decisions and why,
 | 2. Clean noise, fill missing data | ✅ Done |
 | 3. Roof face segmentation and plane fitting | ✅ Done |
 | 4. Obstruction detection | ✅ Done |
-| 5. 3D roof model | ✅ Done (awaiting approval) |
-| 6. Solar panel placement | ⏳ Next |
-| 7. Validation, README, write-up, video | ⬜ |
+| 5. 3D roof model | ✅ Done |
+| 6. Solar panel placement | ✅ Done (awaiting approval) |
+| 7. Validation, README, write-up, video | ⏳ Next |
 
 ## Assumptions (running list)
-- Standard panel size is about 1.7 m × 1.0 m (to be confirmed).
+- Standard panel: 1.722 m × 1.134 m, 430 Wp (a typical 2024 108-half-cell module); a 60-cell 1.65 × 0.99 m panel is in the sensitivity check.
+- Panels are flush-mounted in rows parallel to the eave, with a 2 cm clamp gap and a 0.3 m setback from every face edge.
+- A face is suitable if its annual irradiation is ≥ 75 % of the site optimum (first-order sky model, no shading).
 - `dsm_clipped.tif` is the area of interest (the property); everything outside it is ignored.
 - Heights are metres above sea level in EPSG:32630; the vertical and horizontal units are both metres.
 - Roofs are piecewise planar (the TGV² prior in step 2 and plane fitting in step 3 rely on this).
@@ -488,3 +490,86 @@ The end-to-end test covers steps 1→4.
 - Objects are simple flat-topped prisms (LOD1-style). Dormers are not modelled with their own roofs, except where step 3 made dormer roofs faces.
 - Building pixels that are neither a face nor a raised object (wall smear, tree leak) are left as holes rather than invented.
 - The model is not a closed solid (holes and object prisms are not stitched), so no volume is reported.
+
+---
+
+## Step 6: Suitable roof areas and solar panel placement
+
+**Run:** `python scripts/run_pipeline.py` (all steps; step 6 itself takes about 1 s)
+**Evidence:** `python scripts/validate_panels.py` (sensitivity to setback, suitability threshold, panel size, strategy)
+**Code:** `src/roofsolar/solar.py`, `src/roofsolar/panels.py`, `pipeline.py::run_panels`
+**Outputs:** `outputs/step06_panels/`
+- `panels.geojson` (3D panel polygons, EPSG:32630)
+- `faces.json` (suitability, counts, strategy comparison and checks per face), `stats.json`
+- `roof_with_panels.glb/.html` (3D model with panels)
+- `00_summary.png`, `01_3d_panels.png`
+
+### 6.1 Suitability: which faces are worth panels
+**First-order annual irradiation model** (`solar.py`), hourly over a year:
+- **Sun position:** NOAA approximation (tested: noon zenith at the equinox and solstices within 0.3–0.7°, sun due south at solar noon).
+- **Two-state sky:** clear hours (Kt = 0.70) and overcast hours (Kt = 0.25) in a 0.42 : 0.58 mix; diffuse fraction from the **Erbs (1982)** correlation; **isotropic (Liu–Jordan)** plane-of-array transposition with 0.2 albedo.
+- **Calibration:** annual GHI 1051 kWh/m², diffuse fraction 0.48 (typical central England).
+- **Why two states:** a single constant Kt made every hour equally hazy, giving a 76 % diffuse fraction. That flattered north faces (NE at 0.80 of optimum) and put the optimum tilt at 26°. Two states fix both.
+- **Result:** optimum fixed plane 42° facing 180°. Relative yield at 35° pitch: S 1.00, **SE/SW 0.95**, E/W 0.81, **NE/NW 0.64**, N 0.57.
+- **Rule:** suitable when relative yield ≥ **0.75**, not glass, slope ≤ 60°, and usable area ≥ 1 panel. **10 of 25 faces** are suitable; panels fit on 6. Excluded: #7 (low yield (0.62)); #8 (low yield (0.63)); #9 (glass, usable area < 1 panel, no usable area); #10 (low yield (0.64)); #11 (low yield (0.63)); #12 (glass, usable area < 1 panel, no usable area); #14 (glass, usable area < 1 panel, no usable area); #16 (low yield (0.66)); #17 (glass, low yield (0.72), usable area < 1 panel, no usable area); #19 (low yield (0.62)); #20 (low yield (0.62)); #21 (low yield (0.63)); #22 (low yield (0.64)); #23 (low yield (0.63)); #25 (low yield (0.63)).
+
+### 6.2 Placement geometry
+- **Plane frame:** e₁ = normalise(ẑ × n) (horizontal, along the eave), e₂ = n × e₁ (up-slope). (u, v) = ((P − o)·e₁, (P − o)·e₂) with P on the plane, so plan → plane is **affine** and polygons transform exactly.
+  - Tests: e₁ horizontal, e₁ ⊥ e₂, distances preserved, points exactly on the plane.
+  - A 1 m² plan square maps to 1/cos(slope) m², i.e. panels and setbacks are **true sloped distances** (in plan they would be wrong by about 22 % at 35°).
+- **Region** = usable pixels of the face (step 4: obstructions + 0.3 m keep-out removed) ∩ the face polygon eroded by the **0.3 m edge setback** (all edges: eaves, ridges, hips, verges). The usable pixel staircase is kept, so the region is conservative.
+- **Packing:** rectangles 1.134 × 1.722 m (portrait or landscape), rows parallel to the eave, 2 cm gap.
+  - **Row packing:** earliest-feasible greedy over 5 cm positions is optimal for identical items on a line (interval scheduling, exchange argument).
+  - **Dynamic programming over row start heights:** F(v) = max(F(v + δ), R_portrait(v) + F(v + h_p + g), R_landscape(v) + F(v + h_l + g)). This is the **exact optimum over all row-based layouts** at the 5 cm resolution, with free row positions and a per-row orientation.
+
+**Strategy comparison** (totals over suitable faces): grid/portrait 31, grid/landscape 39, rows/portrait 34, rows/landscape 41, dp/portrait 34, dp/landscape 43, dp_mixed 45.
+- Default `dp_mixed`; `dp` (one orientation per face) gives 43 if uniform arrays are preferred.
+- The simple fixed-pitch row packing was already within 2 panels of the row optimum.
+- The area-only upper bound is 89 panels. The gap to it is the **shape of the faces**: the outer faces of the ring roof are ~21 m long but only ~3 m of usable slope deep after setbacks (2 landscape rows), plus hip triangles and keep-outs. This was verified by plotting each region in plane coordinates.
+
+### 6.3 Validation (all automated, in `stats.json`)
+| Check | Result |
+|---|---|
+| Every panel inside its placement region | **True** |
+| Overlapping panel pairs | **0** |
+| Minimum gap between panels | **0.028 m** (≥ 0.02) |
+| Minimum distance to a face edge or hole | **0.301 m** (≥ 0.30) |
+| Independent raster check (each panel sampled on a 5 cm grid, mapped back to plan pixels; samples on unusable pixels or another face) | **0** |
+| Panel corners | computed in the plane frame, so they lie on the face plane with exact 1.722 / 1.134 m edges (frame tests) |
+
+**Sensitivity** (`validate_panels.py`; checks pass in every variant):
+
+| variant | panels | kWp | kWh/yr |
+|---|---|---|---|
+| **default** (setback 0.3, threshold 0.75, 430 Wp, dp_mixed) | 45 | 19.35 | ~18,400 |
+| setback 0.2 m | 54 | 23.22 | ~22,100 |
+| setback 0.4 m | 33 | 14.19 | ~13,500 |
+| threshold 0.60 (allow NE/NW) | 68 | 29.24 | ~24,700 |
+| 60-cell 1.65 × 0.99 m, 350 Wp | 53 | 18.55 | ~17,600 |
+| strategy dp / grid | 43 / 39 | 18.49 / 16.77 | ~17,600 / ~15,900 |
+
+- The **edge setback dominates**, because the faces are narrow. It is a safety/wind assumption to confirm with the installer.
+- Allowing NE/NW faces adds 51 % more panels but only 34 % more energy.
+
+### 6.4 Results
+| | |
+|---|---|
+| **Panels** | **45** × 430 Wp = **19.35 kWp**, 87.9 m² of modules |
+| Energy (first-order, PR 0.80, no shading) | **~18,396 kWh/yr**; specific yield 951 kWh/kWp (UK typical 850–1000) |
+| Placement region on suitable faces | 186.9 m² (of 270.8 m² usable) |
+
+| face | slope | aspect | rel. yield | region m² | panels | area bound | orientation | compactness |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 36° | 135° | 0.95 | 60.4 | 19 | 30 | mixed | 0.63 |
+| 2 | 31° | 224° | 0.95 | 10.0 | 2 | 4 | mixed | 0.99 |
+| 3 | 37° | 134° | 0.94 | 12.8 | 3 | 6 | mixed | 0.94 |
+| 4 | 35° | 224° | 0.95 | 48.5 | 8 | 24 | mixed | 0.34 |
+| 5 | 36° | 225° | 0.95 | 13.0 | 3 | 6 | mixed | 0.83 |
+| 6 | 37° | 224° | 0.95 | 30.7 | 10 | 15 | mixed | 0.92 |
+
+### 6.5 Limitations
+- **No shading analysis.** The tree to the NW, the dormers and the chimneys will shade parts of the roof at times; a horizon/ray-cast model on the 3D mesh is the natural next step.
+- The sky model is first-order (two states, isotropic diffuse). Energy is an estimate, not a yield certificate (PVGIS or measured data in production).
+- Rows are parallel to the eave only (industry practice). Other angles and free rectangle packing could fit more on hip triangles.
+- The setback is uniform. Real codes differ by edge type (e.g. larger at verges and ridges for wind and fire access).
+- The region keeps the pixel staircase of the usable mask (conservative by up to about half a pixel).

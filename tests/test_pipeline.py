@@ -13,6 +13,7 @@ from roofsolar.pipeline import (
     run_faces,
     run_model3d,
     run_obstructions,
+    run_panels,
     run_terrain,
 )
 from roofsolar.synthetic import correlated_noise, hip_roof_scene, quantize
@@ -66,11 +67,12 @@ def run(tmp_path_factory):
     f = run_faces(cfg, c)
     o = run_obstructions(cfg, f)
     m = run_model3d(cfg, o)
-    return sc, t, c, tmp / "out", f, o, m
+    pn = run_panels(cfg, m)
+    return sc, t, c, tmp / "out", f, o, m, pn
 
 
 def test_terrain_recovers_roof_pitch_and_orientation(run):
-    _, t, _, _, _, _, _m = run
+    _, t, _, _, _, _, _m, _pn = run
     peaks = [p["azimuth_deg"] for p in t.stats["roof_candidates"]["aspect_peaks_deg"]]
     # 44 deg rotated hip roof -> faces at ~44/134/224/314 grid deg (+ convergence ~0.2)
     for expected in (44, 134, 224, 314):
@@ -79,7 +81,7 @@ def test_terrain_recovers_roof_pitch_and_orientation(run):
 
 
 def test_cleaning_removes_spike_and_reduces_noise(run):
-    sc, t, c, _, _, _, _m = run
+    sc, t, c, _, _, _, _m, _pn = run
     assert c.outliers[50, 60]  # clip and full share one grid here
     assert c.stats["outliers"]["count"] <= 5
     s = c.stats["open_ground_slope_deg"]
@@ -96,7 +98,7 @@ def test_cleaning_removes_spike_and_reduces_noise(run):
 
 
 def test_outputs_written_and_nan_outside_aoi(run):
-    _, t, c, out, _, _, _m = run
+    _, t, c, out, _, _, _m, _pn = run
     for f in (
         "dsm_clean.tif",
         "slope.tif",
@@ -112,7 +114,7 @@ def test_outputs_written_and_nan_outside_aoi(run):
 
 
 def test_faces_recovered_end_to_end(run):
-    sc, t, _, out, f, _, _m = run
+    sc, t, _, out, f, _, _m, _pn = run
     assert f.stats["faces"] == 4
     for n in sc.normals.values():
         assert min(p.angle_to(Plane(n, 0)) for p in f.planes.values()) < 1.0
@@ -123,7 +125,7 @@ def test_faces_recovered_end_to_end(run):
 
 
 def test_obstructions_end_to_end(run):
-    sc, t, _, out, f, o, _m = run
+    sc, t, _, out, f, o, _m, _pn = run
     assert (o.classes[sc.chimney] > 0).mean() > 0.8  # the chimney is an obstruction
     assert not o.usable[sc.chimney].any()
     assert 0.7 < o.stats["usable_share_of_faces"] < 1.0
@@ -132,10 +134,19 @@ def test_obstructions_end_to_end(run):
 
 
 def test_model3d_end_to_end(run):
-    _, _, _, out, _, _, m = run
+    _, _, _, out, _, _, m, _pn = run
     st = m.stats
     assert st["faces"] == 4
     assert st["crease_vertex_gap_m_max"] < 1e-9 and st["planarity_max_m"] < 1e-9
     assert st["vertex_kinds"].get("junction", 0) == 2
     for name in ("roof_model.ply", "roof_model.glb", "roof_model.html", "roof_faces_3d.geojson"):
         assert (out / "step05_model3d" / name).exists()
+
+
+def test_panels_end_to_end(run):
+    *_, pn = run
+    st = pn.stats
+    assert st["panels"] > 0
+    c = st["checks"]
+    assert c["all_inside_region"] and c["overlaps"] == 0 and c["raster_violations"] == 0
+    assert c["min_gap_m"] >= 0.02 - 1e-9 and c["min_edge_distance_m"] >= 0.3 - 1e-6
