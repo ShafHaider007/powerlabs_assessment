@@ -157,6 +157,9 @@ python scripts/validate_faces.py
 
 # Step-4 evidence: threshold sensitivity (recall vs usable area)
 python scripts/validate_obstructions.py
+
+# Step-6 evidence: placement sensitivity (setback, suitability, panel size, strategy)
+python scripts/validate_panels.py
 ```
 
 ## Outputs
@@ -230,6 +233,18 @@ directly in QGIS.
 
 ![Step 5 model](docs/figures/step05_model3d.png)
 
+**Step 6: `outputs/step06_panels/`**
+
+| File | Content |
+|---|---|
+| `panels.geojson` | every panel as a 3D polygon (EPSG:32630) with face, orientation, estimated kWh/yr |
+| `roof_with_panels.html` / `.glb` | **interactive 3D roof with panels** |
+| `faces.json` | per face: relative solar yield, suitability (and why not), panels, strategy comparison, validity checks |
+| `stats.json` | totals (panels, kWp, kWh/yr) and automated geometric checks |
+
+![Step 6 panels](docs/figures/step06_summary.png)
+![Step 6 3D](docs/figures/step06_3d_panels.png)
+
 ## Configuration
 
 All parameters (slope limits, obstruction height threshold, panel dimensions, setbacks, ...) live in
@@ -259,5 +274,5 @@ The approach, key algorithms, assumptions, limitations and incomplete tasks will
 | 3. Roof face segmentation & plane fitting | ✅ |
 | 4. Obstruction detection | ✅ |
 | 5. 3D roof model | ✅ |
-| 6. Solar panel placement | ⏳ next |
-| 7. Validation & write-up | ⬜ |
+| 6. Solar panel placement | ✅ |
+| 7. Validation & write-up | ⏳ next |
