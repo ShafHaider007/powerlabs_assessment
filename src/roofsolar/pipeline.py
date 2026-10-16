@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import shapely
 from rasterio.windows import Window
 from scipy import ndimage as ndi
 from skimage.filters import threshold_otsu
 
-from roofsolar import cleaning, faces, model3d, obstructions, terrain, viz
+from roofsolar import cleaning, faces, model3d, obstructions, panels, solar, terrain, viz
 from roofsolar.raster_io import Raster, crop, read_raster, window_of, write_raster
 
 log = logging.getLogger(__name__)
@@ -1035,3 +1036,258 @@ def export_model(res: ModelResult, fr: FacesResult, t: TerrainResult, out: Path)
         )
     )
     viz.model_html(res, out / "roof_model.html")
+
+
+@dataclass
+class PanelResult:
+    """Step-6 outputs."""
+
+    panels: list[dict]  # one per panel: face, orientation, corners (local 3D), plan polygon
+    faces: list[dict]  # per face: suitability, counts, strategy comparison, checks
+    stats: dict[str, Any]
+    model: ModelResult | None = None
+
+
+def run_panels(cfg: dict[str, Any], prev: ModelResult | None = None) -> PanelResult:
+    """Step 6: rank faces by solar potential and pack standard panels on suitable faces."""
+    from rasterio.warp import transform as warp_transform
+
+    if prev is None or prev.obstructions is None:
+        prev = run_model3d(cfg)
+    om = prev.obstructions
+    fr = om.faces
+    t = fr.cleaning.terrain
+    pc = cfg["panels"]
+    out = Path(cfg["paths"]["output_dir"]) / "step06_panels"
+    out.mkdir(parents=True, exist_ok=True)
+    pixel = t.inputs.full.pixel_size
+    labels, planes = fr.labels, fr.planes
+    rows_, cols_ = labels.shape
+
+    # site position for the sun model
+    x0, y0 = t.inputs.clip.transform @ (cols_ / 2, rows_ / 2)
+    lon, lat = warp_transform(t.inputs.clip.crs, "EPSG:4326", [x0], [y0])
+    irr = solar.AnnualIrradiation(lat[0], lon[0], **pc["sky"])
+    opt_tilt, opt_az, opt_kwh = irr.optimum()
+
+    t0 = time.perf_counter()
+    face_polys = model3d.polygonize(labels, pixel, 0.0)
+    usable_polys = model3d.polygonize(np.where(om.usable, labels, 0), pixel, 0.0)
+    usable_by_id = {f["id"]: f for f in om.face_usable}
+    panel_area = pc["width_m"] * pc["height_m"]
+    rows, panel_list = [], []
+    for f in fr.face_table:
+        k = f["id"]
+        poa = irr.plane(f["slope_deg"], f["aspect_deg"])
+        rel = poa / opt_kwh
+        rec = {
+            "id": k,
+            "slope_deg": f["slope_deg"],
+            "aspect_deg": f["aspect_deg"],
+            "area_3d_m2": f["area_3d_m2"],
+            "usable_3d_m2": usable_by_id[k]["usable_3d_m2"],
+            "annual_poa_kwh_m2": round(poa, 1),
+            "relative_yield": round(rel, 3),
+            "glass": usable_by_id[k]["glass"],
+            "panels": 0,
+        }
+        reasons = []
+        if rec["glass"]:
+            reasons.append("glass")
+        if f["slope_deg"] > pc["max_slope_deg"]:
+            reasons.append("too steep")
+        if rel < pc["min_relative_yield"]:
+            reasons.append(f"low yield ({rel:.2f})")
+        if rec["usable_3d_m2"] < panel_area:
+            reasons.append("usable area < 1 panel")
+        if k not in usable_polys:
+            reasons.append("no usable area")
+        rec["suitable"] = not reasons
+        rec["excluded_because"] = reasons
+        if rec["suitable"]:
+            pl = planes[k]
+            face_plan = shapely.union_all(face_polys[k])
+            usable_plan = shapely.union_all(usable_polys[k])
+            frame = panels.PlaneFrame.of(pl, np.array(face_plan.centroid.coords[0]))
+            region, face_uv = panels.face_region(
+                face_plan, usable_plan, frame, pl, pc["edge_setback_m"]
+            )
+            lay = panels.place_on_region(
+                region,
+                pc["width_m"],
+                pc["height_m"],
+                pc["gap_m"],
+                pc["search_step_m"],
+                pc["strategy"],
+            )
+            if len(lay.boxes) < pc["min_panels_per_face"]:
+                lay.boxes = []
+            chk = panels.check_layout(lay.boxes, region, face_uv, pc["gap_m"], pc["edge_setback_m"])
+            chk["raster_violations"] = _raster_check(lay.boxes, frame, om.usable, labels, k, pixel)
+            rec.update(
+                {
+                    "panels": len(lay.boxes),
+                    "orientation": lay.orientation,
+                    "candidates": lay.candidates,
+                    "region_area_m2": round(float(region.area), 2),
+                    "packing_efficiency": round(len(lay.boxes) * panel_area / region.area, 3)
+                    if region.area
+                    else 0.0,
+                    # area-only upper bound: each panel occupies (w + gap) x (h + gap)
+                    "area_bound_panels": int(
+                        region.area
+                        // ((pc["width_m"] + pc["gap_m"]) * (pc["height_m"] + pc["gap_m"]))
+                    ),
+                    "compactness": round(panels.compactness(lay.boxes), 3),
+                    "checks": chk,
+                }
+            )
+            for b in lay.boxes:
+                uv = np.array(b.exterior.coords)[:-1]
+                p3 = frame.to_3d(uv)
+                panel_list.append(
+                    {
+                        "face": k,
+                        "orientation": lay.orientation,
+                        "corners_local": p3.tolist(),
+                        "plan": shapely.Polygon(p3[:, :2]),
+                        "kwh_year": round(pc["power_wp"] / 1000 * poa * pc["performance_ratio"], 1),
+                    }
+                )
+        rows.append(rec)
+    seconds = time.perf_counter() - t0
+
+    suitable = [r for r in rows if r["suitable"]]
+    n = len(panel_list)
+    kwp = n * pc["power_wp"] / 1000
+    checks = [r["checks"] for r in suitable if r["panels"]]
+    gaps = [c["min_gap_m"] for c in checks if c["min_gap_m"] is not None]
+    alt = {}
+    for key in (
+        "grid/portrait",
+        "grid/landscape",
+        "rows/portrait",
+        "rows/landscape",
+        "dp/portrait",
+        "dp/landscape",
+        "dp_mixed",
+    ):
+        alt[key] = sum(r.get("candidates", {}).get(key, 0) for r in suitable)
+    stats = {
+        "seconds": round(seconds, 1),
+        "site_lat_lon": [round(float(lat[0]), 5), round(float(lon[0]), 5)],
+        "sky": {
+            "annual_ghi_kwh_m2": round(irr.plane(0, 180), 1),
+            "diffuse_fraction": round(irr.diffuse_fraction, 3),
+            "optimum_tilt_deg": opt_tilt,
+            "optimum_azimuth_deg": opt_az,
+            "optimum_poa_kwh_m2": round(opt_kwh, 1),
+        },
+        "panel": {"size_m": [pc["width_m"], pc["height_m"]], "power_wp": pc["power_wp"]},
+        "faces_total": len(rows),
+        "faces_suitable": len(suitable),
+        "panels": n,
+        "kwp": round(kwp, 2),
+        "annual_kwh_estimate": round(sum(p["kwh_year"] for p in panel_list)),
+        "specific_yield_kwh_per_kwp": round(sum(p["kwh_year"] for p in panel_list) / kwp, 0)
+        if kwp
+        else None,
+        "panel_area_m2": round(n * panel_area, 1),
+        "suitable_usable_area_3d_m2": round(sum(r["usable_3d_m2"] for r in suitable), 1),
+        "strategy_totals": alt,
+        "area_bound_panels": sum(r.get("area_bound_panels", 0) for r in suitable),
+        "placement_region_area_m2": round(sum(r.get("region_area_m2", 0) for r in suitable), 1),
+        "checks": {
+            "all_inside_region": all(c["inside"] for c in checks),
+            "overlaps": sum(c["overlaps"] for c in checks),
+            "min_gap_m": min(gaps) if gaps else None,
+            "min_edge_distance_m": min(c["min_edge_distance_m"] for c in checks)
+            if checks
+            else None,
+            "raster_violations": sum(c["raster_violations"] for c in checks),
+        },
+    }
+
+    res = PanelResult(panel_list, rows, stats, prev)
+    export_panels(res, prev, t, out)
+    (out / "faces.json").write_text(json.dumps(rows, indent=2, default=str))
+    (out / "stats.json").write_text(json.dumps(stats, indent=2))
+    viz.plot_panels(res, fr, om, t, out)
+    log.info(
+        "Step 6: %d panels (%.1f kWp) on %d faces, ~%d kWh/yr, %.1f s",
+        n,
+        kwp,
+        sum(r["panels"] > 0 for r in rows),
+        stats["annual_kwh_estimate"],
+        seconds,
+    )
+    return res
+
+
+def _raster_check(boxes, frame, usable, labels, k, pixel, step: float = 0.05) -> int:
+    """Independent end-to-end check: sample each panel on a 5 cm grid, map back to plan
+    pixels and count samples that land on non-usable pixels or another face."""
+    bad = 0
+    rows, cols = labels.shape
+    for b in boxes:
+        umin, vmin, umax, vmax = b.bounds
+        uu, vv = np.meshgrid(
+            np.arange(umin + step / 2, umax, step), np.arange(vmin + step / 2, vmax, step)
+        )
+        p3 = frame.to_3d(np.c_[uu.ravel(), vv.ravel()])
+        c = np.clip(np.floor(p3[:, 0] / pixel[0]).astype(int), 0, cols - 1)
+        r = np.clip(np.floor(-p3[:, 1] / pixel[1]).astype(int), 0, rows - 1)
+        bad += int(np.sum(~usable[r, c] | (labels[r, c] != k)))
+    return bad
+
+
+def export_panels(res: PanelResult, mres: ModelResult, t: TerrainResult, out: Path) -> None:
+    """Panels as 3D GeoJSON (CRS coordinates) and a roof+panels mesh / HTML viewer."""
+    import trimesh
+
+    e0, n0 = mres.origin_utm
+    feats = []
+    for i, p in enumerate(res.panels):
+        c = np.array(p["corners_local"])
+        ring = [[float(x + e0), float(y + n0), float(z)] for x, y, z in c] + [
+            [float(c[0, 0] + e0), float(c[0, 1] + n0), float(c[0, 2])]
+        ]
+        feats.append(
+            {
+                "type": "Feature",
+                "properties": {
+                    "panel": i,
+                    "face": p["face"],
+                    "orientation": p["orientation"],
+                    "kwh_year": p["kwh_year"],
+                },
+                "geometry": {"type": "Polygon", "coordinates": [ring]},
+            }
+        )
+    (out / "panels.geojson").write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "crs": {"type": "name", "properties": {"name": t.inputs.clip.crs.to_string()}},
+                "features": feats,
+            }
+        )
+    )
+    # mesh: roof model + panels lifted 5 cm along the face normal
+    v, f, col = [mres.vertices], [mres.triangles], [mres.colors]
+    nv = len(mres.vertices)
+    planes = mres.obstructions.faces.planes
+    for p in res.panels:
+        c = np.array(p["corners_local"]) + planes[p["face"]].normal * 0.05
+        v.append(c)
+        f.append(np.array([[0, 1, 2], [0, 2, 3]]) + nv)
+        col.append(np.tile([25, 35, 90], (2, 1)))
+        nv += 4
+    verts, tris, cols = np.vstack(v), np.vstack(f), np.vstack(col).astype(np.uint8)
+    trimesh.Trimesh(verts, tris, face_colors=cols, process=False).export(
+        out / "roof_with_panels.glb"
+    )
+    combo = ModelResult(
+        mres.model, verts, tris, cols, [], np.full(len(tris), -1), mres.origin_utm, {}, None
+    )
+    viz.model_html(combo, out / "roof_with_panels.html")

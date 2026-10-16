@@ -18,6 +18,7 @@ from roofsolar.pipeline import (
     run_faces,
     run_model3d,
     run_obstructions,
+    run_panels,
     run_terrain,
 )
 
@@ -27,6 +28,7 @@ STEPS = {
     3: ("roof faces", run_faces),
     4: ("obstructions", run_obstructions),
     5: ("3D roof model", run_model3d),
+    6: ("solar panel placement", run_panels),
 }
 
 

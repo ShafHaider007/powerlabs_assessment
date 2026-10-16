@@ -791,3 +791,142 @@ def model_html(res, path: Path) -> None:
         margin=dict(l=0, r=0, t=40, b=0),
     )
     fig.write_html(path, include_plotlyjs="cdn")
+
+
+def plot_panels(res, fr, om, t, out: Path) -> None:
+    """Step-6 figures: layout on the RGB, suitability, usable area, strategy comparison, 3D."""
+    from matplotlib.colors import ListedColormap
+    from matplotlib.patches import Polygon as MplPolygon
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+    pixel = om.hag.pixel_size
+    ext = _extent(fr.labels.shape, pixel)
+    zoom = _zoom_window(fr.candidate, pixel)
+    labels = fr.labels
+    s = res.stats
+
+    def setzoom(a):
+        a.set_xlim(zoom[0], zoom[1])
+        a.set_ylim(zoom[2], zoom[3])
+
+    def draw_panels(a, fc="#1b2a6b", ec="white"):
+        for p in res.panels:
+            xy = np.array(p["plan"].exterior.coords)
+            # plan y is north (negative down the image); figures use south-positive axes
+            a.add_patch(MplPolygon(np.c_[xy[:, 0], -xy[:, 1]], closed=True, fc=fc, ec=ec, lw=0.5))
+
+    fig, ax = plt.subplots(2, 2, figsize=(18, 17))
+    ax[0, 0].imshow(t.rgb, extent=ext)
+    for k in fr.planes:
+        _outline(ax[0, 0], labels == k, pixel, color="yellow", lw=0.5)
+    draw_panels(ax[0, 0])
+    _style(
+        ax[0, 0],
+        f"{s['panels']} panels ({s['kwp']} kWp, ~{s['annual_kwh_estimate']:,} kWh/yr) "
+        f"on {sum(r['panels'] > 0 for r in res.faces)} faces",
+    )
+
+    rel = np.full(labels.shape, np.nan)
+    for r in res.faces:
+        rel[labels == r["id"]] = r["relative_yield"]
+    im = ax[0, 1].imshow(rel, cmap="RdYlGn", vmin=0.5, vmax=1.0, extent=ext)
+    fig.colorbar(im, ax=ax[0, 1], shrink=0.7, label="annual irradiation / site optimum")
+    from scipy import ndimage as ndi
+
+    for r in res.faces:
+        m = labels == r["id"]
+        if m.sum() < 300:
+            continue
+        rr, cc = ndi.center_of_mass(m)
+        ax[0, 1].text(
+            (cc + 0.5) * pixel[0],
+            (rr + 0.5) * pixel[1],
+            f"{r['relative_yield']:.2f}" + ("" if r["suitable"] else "\n✗"),
+            ha="center",
+            va="center",
+            fontsize=8,
+            fontweight="bold",
+        )
+    _style(ax[0, 1], "Suitability: annual irradiation relative to the site optimum (✗ = excluded)")
+
+    img = np.zeros(labels.shape)
+    img[fr.candidate] = 1
+    img[labels > 0] = 1
+    img[om.keepout | (om.classes > 0) & (labels > 0)] = 2
+    img[om.usable] = 3
+    ax[1, 0].imshow(
+        np.where(img > 0, img, np.nan),
+        cmap=ListedColormap(["lightgrey", "salmon", "#a8d5a2"]),
+        vmin=0.5,
+        vmax=3.5,
+        extent=ext,
+        interpolation="nearest",
+    )
+    draw_panels(ax[1, 0])
+    for lab_, col in (
+        ("usable", "#a8d5a2"),
+        ("obstruction / keep-out", "salmon"),
+        ("panel", "#1b2a6b"),
+    ):
+        ax[1, 0].plot([], [], "s", color=col, ms=10, label=lab_)
+    ax[1, 0].legend(loc="lower left")
+    c = s["checks"]
+    _style(
+        ax[1, 0],
+        f"Panels vs usable area: overlaps {c['overlaps']}, min gap {c['min_gap_m']} m, "
+        f"min edge dist {c['min_edge_distance_m']} m, raster violations "
+        f"{c['raster_violations']}",
+    )
+    for a in (ax[0, 0], ax[0, 1], ax[1, 0]):
+        setzoom(a)
+
+    suit = [r for r in res.faces if r["suitable"]]
+    keys = list(s["strategy_totals"])
+    xs = np.arange(len(suit))
+    bw = 0.8 / len(keys)
+    for i, key in enumerate(keys):
+        ax[1, 1].bar(
+            xs + (i - (len(keys) - 1) / 2) * bw,
+            [r.get("candidates", {}).get(key, 0) for r in suit],
+            bw,
+            label=f"{key} (total {s['strategy_totals'][key]})",
+        )
+    ax[1, 1].set_xticks(xs, [f"face {r['id']}\n{r['aspect_deg']:.0f}°" for r in suit], fontsize=8)
+    ax[1, 1].set_ylabel("panels")
+    ax[1, 1].legend()
+    ax[1, 1].set_title("Packing strategy comparison per suitable face")
+    fig.tight_layout()
+    fig.savefig(out / "00_summary.png", dpi=100)
+    plt.close(fig)
+
+    # 01: 3D view of the roof with panels
+    m = res.model
+    v, f, col = m.vertices, m.triangles, m.colors
+    tri = v[f]
+    n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    n /= np.linalg.norm(n, axis=1, keepdims=True) + 1e-12
+    shaded = _shade(col.astype(float), n)
+    planes = m.obstructions.faces.planes
+    ptris = [np.array(p["corners_local"]) + planes[p["face"]].normal * 0.06 for p in res.panels]
+    # Painter's algorithm limits: panels always lie on top of their roof face, so draw the
+    # roof first and the panels last (the HTML viewer uses a real depth buffer instead).
+    fig = plt.figure(figsize=(16, 10))
+    a = fig.add_subplot(projection="3d", computed_zorder=False)
+    a.add_collection3d(
+        Poly3DCollection(list(tri), facecolors=shaded, edgecolors=shaded, linewidths=0.3, zorder=1)
+    )
+    a.add_collection3d(
+        Poly3DCollection(ptris, facecolors="#1b2a6b", edgecolors="white", linewidths=0.5, zorder=2)
+    )
+    lo, hi = v.min(0), v.max(0)
+    span = max(hi[0] - lo[0], hi[1] - lo[1])
+    a.set_xlim(lo[0], hi[0])
+    a.set_ylim(lo[1], hi[1])
+    a.set_zlim(lo[2], lo[2] + span * 0.35)
+    a.set_box_aspect((hi[0] - lo[0], hi[1] - lo[1], span * 0.35), zoom=1.3)
+    a.view_init(elev=40, azim=-120)
+    a.set_axis_off()
+    a.set_title(f"{s['panels']} panels on the reconstructed roof (view from the south-west)")
+    fig.tight_layout()
+    fig.savefig(out / "01_3d_panels.png", dpi=100)
+    plt.close(fig)

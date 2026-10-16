@@ -125,6 +125,29 @@ model3d:
   max_snap_m: 0.3
   min_object_m2: 0.1                   # raised obstructions modelled as prisms
 
+# ---------------------------------------------------------------- step 6
+panels:
+  # Standard module (typical 2024 108 half-cell, ~430 Wp): 1722 x 1134 mm
+  width_m: 1.134
+  height_m: 1.722
+  power_wp: 430
+  gap_m: 0.02                          # mounting clamp gap between modules
+  edge_setback_m: 0.3                  # from every face edge (eaves, ridges, hips, verges)
+  # dp_mixed: optimal over all row layouts (portrait or landscape per row); dp: same with one
+  # orientation per face; rows: fixed row pitch; grid: aligned columns (see panels.py)
+  strategy: dp_mixed
+  search_step_m: 0.05                  # offset / position search resolution
+  # Suitability: annual irradiation relative to the best fixed plane at this site
+  min_relative_yield: 0.75             # SE/SW faces ~0.95 pass; NE/NW ~0.64 do not
+  max_slope_deg: 60.0
+  min_panels_per_face: 1
+  performance_ratio: 0.80              # system losses, for the first-order energy estimate
+  sky:                                 # two-state sky calibrated to central England:
+    clear_kt: 0.70                     # GHI ~1050 kWh/m2/yr, diffuse fraction ~0.49
+    overcast_kt: 0.25
+    clear_fraction: 0.42
+    albedo: 0.2
+
 figures:
   # Cross-section lines in AOI pixel coordinates: [col, row, azimuth_deg, length_m, label]
   profiles:
