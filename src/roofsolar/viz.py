@@ -39,15 +39,23 @@ def _style(ax, title: str) -> None:
     )
 
 
+def _outline(
+    ax, mask: np.ndarray, pixel: tuple[float, float], color: str = "yellow", lw: float = 1.2
+) -> None:
+    """Draw a mask boundary using explicit pixel-centre coordinates (local metres).
+
+    Explicit coordinates avoid matplotlib's origin/extent conventions for contour, which
+    differ from imshow and silently flipped the outline vertically.
+    """
+    rows, cols = mask.shape
+    x = (np.arange(cols) + 0.5) * pixel[0]
+    y = (np.arange(rows) + 0.5) * pixel[1]
+    ax.contour(x, y, mask.astype(float), levels=[0.5], colors=color, linewidths=lw)
+
+
 def _aoi_outline(ax, aoi: np.ndarray, ext) -> None:
-    ax.contour(
-        aoi.astype(float),
-        levels=[0.5],
-        colors="yellow",
-        linewidths=1.2,
-        extent=(ext[0], ext[1], ext[3], ext[2]),
-        origin="upper",
-    )
+    rows, cols = aoi.shape
+    _outline(ax, aoi, (ext[1] / cols, ext[2] / rows))
 
 
 def _compass_wheel(fig, rect, cmap) -> None:
