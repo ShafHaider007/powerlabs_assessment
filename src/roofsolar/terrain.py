@@ -204,3 +204,44 @@ def off_grid_mask(
     off &= ~np.isnan(z)
     density = ndi.uniform_filter(off.astype(float), window_px)
     return ndi.binary_fill_holes(density >= min_density)
+
+
+def planar_tiles(
+    z: np.ndarray, mask: np.ndarray, window: int = 15, max_resid_m: float = 0.03
+) -> list[tuple[int, int]]:
+    """Top-left corners of non-overlapping tiles inside ``mask`` that are close to planar.
+
+    A tile qualifies when a least-squares plane fits it with residual std < ``max_resid_m``,
+    i.e. it lies on one roof face, not across a ridge or edge. Used to measure how much
+    surface normals scatter on a face, before and after cleaning (same tiles for both).
+    """
+    yy, xx = np.mgrid[0:window, 0:window]
+    design = np.c_[xx.ravel(), yy.ravel(), np.ones(window * window)]
+    pinv = np.linalg.pinv(design)
+    tiles = []
+    for r in range(0, z.shape[0] - window + 1, window):
+        for c in range(0, z.shape[1] - window + 1, window):
+            if not mask[r : r + window, c : c + window].all():
+                continue
+            t = z[r : r + window, c : c + window].ravel()
+            if np.isnan(t).any():
+                continue
+            if (t - design @ (pinv @ t)).std() < max_resid_m:
+                tiles.append((r, c))
+    return tiles
+
+
+def normal_scatter_deg(
+    normals: np.ndarray, tiles: list[tuple[int, int]], window: int = 15
+) -> np.ndarray:
+    """Per tile: median angle (deg) between each pixel normal and the tile's mean normal.
+
+    The outermost ring of each tile is skipped (Horn uses neighbours outside the tile).
+    """
+    out = []
+    for r, c in tiles:
+        t = normals[:, r + 1 : r + window - 1, c + 1 : c + window - 1].reshape(3, -1)
+        m = t.mean(1)
+        m /= np.linalg.norm(m)
+        out.append(np.median(np.degrees(np.arccos(np.clip(m @ t, -1, 1)))))
+    return np.array(out)
