@@ -1,0 +1,102 @@
+{
+  "nearest": {
+    "r=0.3m": {
+      "rmse_cm_median": 7.74,
+      "rmse_cm_p90": 9.45,
+      "max_cm_median": 15.8,
+      "holes": 25
+    },
+    "r=0.75m": {
+      "rmse_cm_median": 15.92,
+      "rmse_cm_p90": 19.49,
+      "max_cm_median": 49.9,
+      "holes": 24
+    },
+    "r=1.5m": {
+      "rmse_cm_median": 31.0,
+      "rmse_cm_p90": 39.91,
+      "max_cm_median": 101.3,
+      "holes": 24
+    }
+  },
+  "idw (GDAL)": {
+    "r=0.3m": {
+      "rmse_cm_median": 3.55,
+      "rmse_cm_p90": 5.3,
+      "max_cm_median": 6.6,
+      "holes": 25
+    },
+    "r=0.75m": {
+      "rmse_cm_median": 9.65,
+      "rmse_cm_p90": 12.47,
+      "max_cm_median": 25.02,
+      "holes": 24
+    },
+    "r=1.5m": {
+      "rmse_cm_median": 22.14,
+      "rmse_cm_p90": 29.97,
+      "max_cm_median": 63.2,
+      "holes": 24
+    }
+  },
+  "linear (Delaunay)": {
+    "r=0.3m": {
+      "rmse_cm_median": 0.51,
+      "rmse_cm_p90": 0.99,
+      "max_cm_median": 1.0,
+      "holes": 25
+    },
+    "r=0.75m": {
+      "rmse_cm_median": 4.58,
+      "rmse_cm_p90": 13.12,
+      "max_cm_median": 9.6,
+      "holes": 24
+    },
+    "r=1.5m": {
+      "rmse_cm_median": 12.82,
+      "rmse_cm_p90": 30.2,
+      "max_cm_median": 41.12,
+      "holes": 24
+    }
+  },
+  "biharmonic": {
+    "r=0.3m": {
+      "rmse_cm_median": 0.21,
+      "rmse_cm_p90": 0.68,
+      "max_cm_median": 0.41,
+      "holes": 25
+    },
+    "r=0.75m": {
+      "rmse_cm_median": 1.96,
+      "rmse_cm_p90": 3.89,
+      "max_cm_median": 5.11,
+      "holes": 24
+    },
+    "r=1.5m": {
+      "rmse_cm_median": 7.68,
+      "rmse_cm_p90": 12.68,
+      "max_cm_median": 22.22,
+      "holes": 24
+    }
+  },
+  "tgv": {
+    "r=0.3m": {
+      "rmse_cm_median": 1.47,
+      "rmse_cm_p90": 2.33,
+      "max_cm_median": 2.54,
+      "holes": 25
+    },
+    "r=0.75m": {
+      "rmse_cm_median": 3.15,
+      "rmse_cm_p90": 8.32,
+      "max_cm_median": 6.48,
+      "holes": 24
+    },
+    "r=1.5m": {
+      "rmse_cm_median": 8.01,
+      "rmse_cm_p90": 15.17,
+      "max_cm_median": 18.78,
+      "holes": 24
+    }
+  }
+}

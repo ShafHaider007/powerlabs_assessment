@@ -1,0 +1,107 @@
+{
+  "grid": {
+    "shape_rows_cols": [
+      623,
+      757
+    ],
+    "pixel_size_m": [
+      0.1,
+      0.1
+    ],
+    "crs": "EPSG:32630",
+    "aoi_window_in_full": [
+      40,
+      36,
+      757,
+      623
+    ],
+    "aoi_pixels": 215590,
+    "aoi_area_m2": 2155.9,
+    "clipped_vs_full_max_abs_diff_m": 0.0
+  },
+  "elevation_m": {
+    "min": 106.466,
+    "p1": 106.75,
+    "p5": 106.81,
+    "median": 107.4,
+    "p95": 120.2,
+    "p99": 128.57,
+    "max": 131.16,
+    "count": 215590
+  },
+  "ground_elevation_m": {
+    "min": 106.39,
+    "p1": 106.442,
+    "p5": 106.483,
+    "median": 106.847,
+    "p95": 107.262,
+    "p99": 107.312,
+    "max": 107.317,
+    "count": 215590
+  },
+  "height_above_ground_m": {
+    "min": -0.172,
+    "p1": -0.01,
+    "p5": 0.044,
+    "median": 0.391,
+    "p95": 13.153,
+    "p99": 21.533,
+    "max": 24.103,
+    "count": 215590
+  },
+  "grid_convergence_deg": 1.626,
+  "aspect_reference": "true north",
+  "dsm_noise_m": 0.0111,
+  "data_provenance": {
+    "height_quantum_m": 0.01,
+    "off_grid_share_of_aoi": 0.384,
+    "off_grid_area_m2": 827.8,
+    "noise_m_off_grid_regions": 0.0185,
+    "noise_m_raw_regions": 0.0103
+  },
+  "flat_ground_slope_deg": {
+    "min": 0.0,
+    "p1": 0.0,
+    "p5": 0.0,
+    "median": 3.436,
+    "p95": 9.877,
+    "p99": 13.798,
+    "max": 23.15,
+    "count": 69106
+  },
+  "flat_slope_threshold_deg": 9.88,
+  "flat_slope_threshold_source": "auto: p95 of open-ground slope",
+  "aspect_undefined_fraction": 0.471,
+  "roof_candidates": {
+    "pixels": 59230,
+    "area_m2_planimetric": 592.3,
+    "slope_deg": {
+      "min": 15.013,
+      "p1": 15.793,
+      "p5": 18.6,
+      "median": 35.337,
+      "p95": 54.129,
+      "p99": 58.824,
+      "max": 59.992,
+      "count": 59230
+    },
+    "aspect_peaks_deg": [
+      {
+        "azimuth_deg": 224.0,
+        "share": 0.258
+      },
+      {
+        "azimuth_deg": 134.1,
+        "share": 0.191
+      },
+      {
+        "azimuth_deg": 43.9,
+        "share": 0.187
+      },
+      {
+        "azimuth_deg": 315.8,
+        "share": 0.18
+      }
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+[
+  {
+    "variant": "default",
+    "panels": 45,
+    "kwp": 19.35,
+    "kwh_year": 18396,
+    "faces_used": 6,
+    "checks_ok": true
+  },
+  {
+    "variant": "setback 0.2 m",
+    "panels": 54,
+    "kwp": 23.22,
+    "kwh_year": 22077,
+    "faces_used": 7,
+    "checks_ok": true
+  },
+  {
+    "variant": "setback 0.4 m",
+    "panels": 33,
+    "kwp": 14.19,
+    "kwh_year": 13491,
+    "faces_used": 6,
+    "checks_ok": true
+  },
+  {
+    "variant": "min relative yield 0.60 (allow NE/NW)",
+    "panels": 68,
+    "kwp": 29.24,
+    "kwh_year": 24662,
+    "faces_used": 12,
+    "checks_ok": true
+  },
+  {
+    "variant": "min relative yield 0.90",
+    "panels": 45,
+    "kwp": 19.35,
+    "kwh_year": 18396,
+    "faces_used": 6,
+    "checks_ok": true
+  },
+  {
+    "variant": "60-cell panel 1.65 x 0.99 m, 350 Wp",
+    "panels": 53,
+    "kwp": 18.55,
+    "kwh_year": 17638,
+    "faces_used": 6,
+    "checks_ok": true
+  },
+  {
+    "variant": "strategy dp (one orientation per face)",
+    "panels": 43,
+    "kwp": 18.49,
+    "kwh_year": 17577,
+    "faces_used": 6,
+    "checks_ok": true
+  },
+  {
+    "variant": "strategy grid",
+    "panels": 39,
+    "kwp": 16.77,
+    "kwh_year": 15940,
+    "faces_used": 6,
+    "checks_ok": true
+  }
+]

@@ -1,0 +1,954 @@
+{
+  "classes": {
+    "1": "dormer / structure",
+    "2": "chimney / small structure",
+    "3": "vent / small raised object",
+    "4": "vegetation",
+    "5": "glass roof (lantern)",
+    "6": "roof window / skylight / fitting",
+    "7": "dark anomaly (shadow or dark fitting)",
+    "8": "depression"
+  },
+  "objects": [
+    {
+      "class": "glass roof (lantern)",
+      "code": 5,
+      "evidence": "rgb (glazing contrast + specular)",
+      "confidence": "high",
+      "area_m2": 30.64,
+      "centroid_local_m": [
+        34.48,
+        -39.7
+      ]
+    },
+    {
+      "class": "vegetation",
+      "code": 4,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.63,
+      "centroid_local_m": [
+        30.4,
+        -19.36
+      ],
+      "max_height_m": 4.54,
+      "elongation": 4.0
+    },
+    {
+      "class": "vegetation",
+      "code": 4,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 1.4,
+      "centroid_local_m": [
+        28.06,
+        -22.11
+      ],
+      "max_height_m": 4.75,
+      "elongation": 2.8
+    },
+    {
+      "class": "vegetation",
+      "code": 4,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 13.58,
+      "centroid_local_m": [
+        23.47,
+        -25.27
+      ],
+      "max_height_m": 12.03,
+      "elongation": 1.5
+    },
+    {
+      "class": "dormer / structure",
+      "code": 1,
+      "evidence": "dsm+rgb",
+      "confidence": "high",
+      "area_m2": 22.24,
+      "centroid_local_m": [
+        40.32,
+        -31.15
+      ],
+      "max_height_m": 2.1,
+      "elongation": 4.1
+    },
+    {
+      "class": "dormer / structure",
+      "code": 1,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 5.96,
+      "centroid_local_m": [
+        29.59,
+        -28.57
+      ],
+      "max_height_m": 1.88,
+      "elongation": 1.8
+    },
+    {
+      "class": "chimney / small structure",
+      "code": 2,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        34.95,
+        -27.95
+      ],
+      "max_height_m": 0.56,
+      "elongation": 1.0
+    },
+    {
+      "class": "chimney / small structure",
+      "code": 2,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.14,
+      "centroid_local_m": [
+        34.4,
+        -28.15
+      ],
+      "max_height_m": 0.5,
+      "elongation": 1.9
+    },
+    {
+      "class": "vegetation",
+      "code": 4,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.5,
+      "centroid_local_m": [
+        23.05,
+        -29.91
+      ],
+      "max_height_m": 4.86,
+      "elongation": 4.0
+    },
+    {
+      "class": "chimney / small structure",
+      "code": 2,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.46,
+      "centroid_local_m": [
+        30.34,
+        -32.75
+      ],
+      "max_height_m": 0.57,
+      "elongation": 2.3
+    },
+    {
+      "class": "dormer / structure",
+      "code": 1,
+      "evidence": "dsm+rgb",
+      "confidence": "high",
+      "area_m2": 1.11,
+      "centroid_local_m": [
+        28.74,
+        -34.49
+      ],
+      "max_height_m": 0.68,
+      "elongation": 3.1
+    },
+    {
+      "class": "dormer / structure",
+      "code": 1,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.14,
+      "centroid_local_m": [
+        35.3,
+        -35.1
+      ],
+      "max_height_m": 1.01,
+      "elongation": 3.2
+    },
+    {
+      "class": "chimney / small structure",
+      "code": 2,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.28,
+      "centroid_local_m": [
+        43.05,
+        -35.6
+      ],
+      "max_height_m": 0.66,
+      "elongation": 1.0
+    },
+    {
+      "class": "vent / small raised object",
+      "code": 3,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.14,
+      "centroid_local_m": [
+        28.95,
+        -36.0
+      ],
+      "max_height_m": 0.29,
+      "elongation": 1.9
+    },
+    {
+      "class": "dormer / structure",
+      "code": 1,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.45,
+      "centroid_local_m": [
+        36.43,
+        -36.35
+      ],
+      "max_height_m": 1.71,
+      "elongation": 6.6
+    },
+    {
+      "class": "chimney / small structure",
+      "code": 2,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 1.03,
+      "centroid_local_m": [
+        25.0,
+        -37.28
+      ],
+      "max_height_m": 0.58,
+      "elongation": 1.8
+    },
+    {
+      "class": "chimney / small structure",
+      "code": 2,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        37.45,
+        -36.95
+      ],
+      "max_height_m": 0.6,
+      "elongation": 1.0
+    },
+    {
+      "class": "chimney / small structure",
+      "code": 2,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 1.82,
+      "centroid_local_m": [
+        27.48,
+        -37.5
+      ],
+      "max_height_m": 0.77,
+      "elongation": 1.3
+    },
+    {
+      "class": "glass roof (lantern)",
+      "code": 5,
+      "evidence": "dsm",
+      "confidence": "high",
+      "area_m2": 2.49,
+      "centroid_local_m": [
+        34.73,
+        -39.69
+      ],
+      "max_height_m": 1.0,
+      "elongation": 1.4
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        28.35,
+        -21.15
+      ],
+      "delta_lightness": -14.3
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.14,
+      "centroid_local_m": [
+        30.37,
+        -22.71
+      ],
+      "delta_lightness": 28.3
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.08,
+      "centroid_local_m": [
+        33.8,
+        -24.45
+      ],
+      "delta_lightness": -38.5
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        27.85,
+        -25.55
+      ],
+      "delta_lightness": -44.6
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.08,
+      "centroid_local_m": [
+        35.6,
+        -25.7
+      ],
+      "delta_lightness": 42.6
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.54,
+      "centroid_local_m": [
+        34.79,
+        -27.4
+      ],
+      "delta_lightness": 37.6
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.31,
+      "centroid_local_m": [
+        38.8,
+        -27.31
+      ],
+      "delta_lightness": -21.7
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.3,
+      "centroid_local_m": [
+        27.59,
+        -27.52
+      ],
+      "delta_lightness": 30.2
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        26.85,
+        -27.85
+      ],
+      "delta_lightness": 21.8
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        39.25,
+        -28.25
+      ],
+      "delta_lightness": -37.4
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.54,
+      "centroid_local_m": [
+        23.76,
+        -28.73
+      ],
+      "delta_lightness": -0.3
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        27.45,
+        -28.55
+      ],
+      "delta_lightness": 14.5
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.36,
+      "centroid_local_m": [
+        36.22,
+        -29.16
+      ],
+      "delta_lightness": 25.8
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        38.45,
+        -29.15
+      ],
+      "delta_lightness": -37.9
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.27,
+      "centroid_local_m": [
+        23.32,
+        -29.58
+      ],
+      "delta_lightness": -42.1
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.14,
+      "centroid_local_m": [
+        24.17,
+        -30.03
+      ],
+      "delta_lightness": -26.3
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.14,
+      "centroid_local_m": [
+        24.97,
+        -30.04
+      ],
+      "delta_lightness": 2.3
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 1.16,
+      "centroid_local_m": [
+        31.21,
+        -30.42
+      ],
+      "delta_lightness": 8.0
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.34,
+      "centroid_local_m": [
+        37.5,
+        -30.29
+      ],
+      "delta_lightness": 25.0
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.14,
+      "centroid_local_m": [
+        29.3,
+        -31.35
+      ],
+      "delta_lightness": 6.1
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.22,
+      "centroid_local_m": [
+        29.83,
+        -32.2
+      ],
+      "delta_lightness": 0.7
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        29.25,
+        -32.15
+      ],
+      "delta_lightness": -27.8
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.11,
+      "centroid_local_m": [
+        29.25,
+        -32.65
+      ],
+      "delta_lightness": 36.5
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.08,
+      "centroid_local_m": [
+        33.3,
+        -32.8
+      ],
+      "delta_lightness": -26.6
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.57,
+      "centroid_local_m": [
+        29.5,
+        -33.53
+      ],
+      "delta_lightness": -3.8
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.08,
+      "centroid_local_m": [
+        24.95,
+        -33.3
+      ],
+      "delta_lightness": -27.4
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        28.05,
+        -33.95
+      ],
+      "delta_lightness": 38.6
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.14,
+      "centroid_local_m": [
+        33.75,
+        -34.4
+      ],
+      "delta_lightness": -47.0
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.23,
+      "centroid_local_m": [
+        42.25,
+        -35.23
+      ],
+      "delta_lightness": -40.0
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.22,
+      "centroid_local_m": [
+        24.5,
+        -35.7
+      ],
+      "delta_lightness": -41.3
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.17,
+      "centroid_local_m": [
+        30.45,
+        -35.85
+      ],
+      "delta_lightness": -29.2
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.19,
+      "centroid_local_m": [
+        25.16,
+        -36.21
+      ],
+      "delta_lightness": -40.9
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        29.85,
+        -36.55
+      ],
+      "delta_lightness": -29.6
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.25,
+      "centroid_local_m": [
+        40.35,
+        -37.12
+      ],
+      "delta_lightness": 17.0
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.08,
+      "centroid_local_m": [
+        29.3,
+        -37.1
+      ],
+      "delta_lightness": -25.7
+    },
+    {
+      "class": "roof window / skylight / fitting",
+      "code": 6,
+      "evidence": "rgb",
+      "confidence": "medium",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        31.95,
+        -37.65
+      ],
+      "delta_lightness": -7.1
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.19,
+      "centroid_local_m": [
+        31.38,
+        -38.21
+      ],
+      "delta_lightness": -10.6
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        41.95,
+        -39.95
+      ],
+      "delta_lightness": -24.9
+    },
+    {
+      "class": "dark anomaly (shadow or dark fitting)",
+      "code": 7,
+      "evidence": "rgb",
+      "confidence": "low",
+      "area_m2": 0.05,
+      "centroid_local_m": [
+        34.25,
+        -47.15
+      ],
+      "delta_lightness": -28.6
+    }
+  ],
+  "faces": [
+    {
+      "id": 1,
+      "slope_deg": 36.31,
+      "aspect_deg": 134.6,
+      "area_3d_m2": 83.26,
+      "usable_3d_m2": 82.39,
+      "usable_share": 0.99,
+      "glass": false
+    },
+    {
+      "id": 2,
+      "slope_deg": 30.65,
+      "aspect_deg": 223.6,
+      "area_3d_m2": 19.83,
+      "usable_3d_m2": 14.2,
+      "usable_share": 0.716,
+      "glass": false
+    },
+    {
+      "id": 3,
+      "slope_deg": 36.62,
+      "aspect_deg": 133.85,
+      "area_3d_m2": 22.3,
+      "usable_3d_m2": 17.89,
+      "usable_share": 0.802,
+      "glass": false
+    },
+    {
+      "id": 4,
+      "slope_deg": 35.24,
+      "aspect_deg": 224.24,
+      "area_3d_m2": 84.26,
+      "usable_3d_m2": 70.62,
+      "usable_share": 0.838,
+      "glass": false
+    },
+    {
+      "id": 5,
+      "slope_deg": 36.25,
+      "aspect_deg": 224.73,
+      "area_3d_m2": 19.9,
+      "usable_3d_m2": 19.85,
+      "usable_share": 0.998,
+      "glass": false
+    },
+    {
+      "id": 6,
+      "slope_deg": 37.13,
+      "aspect_deg": 224.49,
+      "area_3d_m2": 43.48,
+      "usable_3d_m2": 43.48,
+      "usable_share": 1.0,
+      "glass": false
+    },
+    {
+      "id": 7,
+      "slope_deg": 39.06,
+      "aspect_deg": 315.24,
+      "area_3d_m2": 25.5,
+      "usable_3d_m2": 23.4,
+      "usable_share": 0.918,
+      "glass": false
+    },
+    {
+      "id": 8,
+      "slope_deg": 37.68,
+      "aspect_deg": 44.23,
+      "area_3d_m2": 36.66,
+      "usable_3d_m2": 33.8,
+      "usable_share": 0.922,
+      "glass": false
+    },
+    {
+      "id": 9,
+      "slope_deg": 14.02,
+      "aspect_deg": 312.38,
+      "area_3d_m2": 7.77,
+      "usable_3d_m2": 0.0,
+      "usable_share": 0.0,
+      "glass": true
+    },
+    {
+      "id": 10,
+      "slope_deg": 35.64,
+      "aspect_deg": 44.33,
+      "area_3d_m2": 49.68,
+      "usable_3d_m2": 43.56,
+      "usable_share": 0.877,
+      "glass": false
+    },
+    {
+      "id": 11,
+      "slope_deg": 37.6,
+      "aspect_deg": 45.19,
+      "area_3d_m2": 36.92,
+      "usable_3d_m2": 28.27,
+      "usable_share": 0.766,
+      "glass": false
+    },
+    {
+      "id": 12,
+      "slope_deg": 13.84,
+      "aspect_deg": 221.81,
+      "area_3d_m2": 8.63,
+      "usable_3d_m2": 0.0,
+      "usable_share": 0.0,
+      "glass": true
+    },
+    {
+      "id": 13,
+      "slope_deg": 17.43,
+      "aspect_deg": 276.67,
+      "area_3d_m2": 4.41,
+      "usable_3d_m2": 2.43,
+      "usable_share": 0.551,
+      "glass": false
+    },
+    {
+      "id": 14,
+      "slope_deg": 18.96,
+      "aspect_deg": 138.49,
+      "area_3d_m2": 7.64,
+      "usable_3d_m2": 0.0,
+      "usable_share": 0.0,
+      "glass": true
+    },
+    {
+      "id": 15,
+      "slope_deg": 22.5,
+      "aspect_deg": 291.14,
+      "area_3d_m2": 9.69,
+      "usable_3d_m2": 6.63,
+      "usable_share": 0.685,
+      "glass": false
+    },
+    {
+      "id": 16,
+      "slope_deg": 33.53,
+      "aspect_deg": 310.79,
+      "area_3d_m2": 14.77,
+      "usable_3d_m2": 12.57,
+      "usable_share": 0.851,
+      "glass": false
+    },
+    {
+      "id": 17,
+      "slope_deg": 21.15,
+      "aspect_deg": 44.44,
+      "area_3d_m2": 8.03,
+      "usable_3d_m2": 0.0,
+      "usable_share": 0.0,
+      "glass": true
+    },
+    {
+      "id": 18,
+      "slope_deg": 32.27,
+      "aspect_deg": 228.82,
+      "area_3d_m2": 10.61,
+      "usable_3d_m2": 7.14,
+      "usable_share": 0.673,
+      "glass": false
+    },
+    {
+      "id": 19,
+      "slope_deg": 40.15,
+      "aspect_deg": 315.72,
+      "area_3d_m2": 13.16,
+      "usable_3d_m2": 9.21,
+      "usable_share": 0.7,
+      "glass": false
+    },
+    {
+      "id": 20,
+      "slope_deg": 38.58,
+      "aspect_deg": 317.09,
+      "area_3d_m2": 13.23,
+      "usable_3d_m2": 11.78,
+      "usable_share": 0.891,
+      "glass": false
+    },
+    {
+      "id": 21,
+      "slope_deg": 38.32,
+      "aspect_deg": 313.1,
+      "area_3d_m2": 6.74,
+      "usable_3d_m2": 6.58,
+      "usable_share": 0.975,
+      "glass": false
+    },
+    {
+      "id": 22,
+      "slope_deg": 34.16,
+      "aspect_deg": 44.35,
+      "area_3d_m2": 12.05,
+      "usable_3d_m2": 8.64,
+      "usable_share": 0.717,
+      "glass": false
+    },
+    {
+      "id": 23,
+      "slope_deg": 35.43,
+      "aspect_deg": 316.64,
+      "area_3d_m2": 7.83,
+      "usable_3d_m2": 5.69,
+      "usable_share": 0.727,
+      "glass": false
+    },
+    {
+      "id": 24,
+      "slope_deg": 40.07,
+      "aspect_deg": 136.55,
+      "area_3d_m2": 6.38,
+      "usable_3d_m2": 6.12,
+      "usable_share": 0.959,
+      "glass": false
+    },
+    {
+      "id": 25,
+      "slope_deg": 36.01,
+      "aspect_deg": 316.88,
+      "area_3d_m2": 6.45,
+      "usable_3d_m2": 4.36,
+      "usable_share": 0.676,
+      "glass": false
+    }
+  ]
+}
