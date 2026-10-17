@@ -1,0 +1,10 @@
+{
+  "mesh_units": "metres",
+  "mesh_axes": "x east, y north, z metres above sea level",
+  "local_origin_in_crs": [
+    640499.0,
+    5794758.300000001
+  ],
+  "crs": "EPSG:32630",
+  "note": "add local_origin to mesh x, y to get CRS coordinates (kept local because float32 mesh formats cannot hold UTM coordinates to cm precision)"
+}

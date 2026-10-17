@@ -1,0 +1,62 @@
+{
+  "tgv": {
+    "alpha1": 0.05,
+    "alpha0": 0.2,
+    "passes": [
+      {
+        "iterations": 1325,
+        "final_rms_change_m": 9.880698051544895e-07,
+        "converged": true
+      },
+      {
+        "iterations": 1325,
+        "final_rms_change_m": 9.861393947942903e-07,
+        "converged": true
+      }
+    ],
+    "seconds_total": 35.0
+  },
+  "missing_pixels_in_aoi": 0,
+  "outliers": {
+    "count": 189,
+    "on_roof": 27,
+    "on_vegetation": 108,
+    "elsewhere": 54,
+    "max_abs_deviation_m": 0.413,
+    "residual_robust_sigma_m": 0.0131
+  },
+  "filled_pixels_in_aoi": 189,
+  "removed_m": {
+    "robust_sigma": 0.0131,
+    "p99_abs": 0.0589,
+    "roof_p99_abs": 0.0511
+  },
+  "open_ground_slope_deg": {
+    "before_p50_p95": [
+      3.44,
+      9.88
+    ],
+    "after_p50_p95": [
+      1.73,
+      6.51
+    ]
+  },
+  "roof_normal_scatter_deg": {
+    "tiles": 40,
+    "before_median": 3.04,
+    "after_median": 1.25
+  },
+  "flat_slope_threshold_deg": {
+    "before": 9.88,
+    "after": 6.51
+  },
+  "aspect_undefined_fraction": {
+    "before": 0.471,
+    "after": 0.447
+  },
+  "vegetation": {
+    "exg_threshold": 0.0312,
+    "share_of_aoi": 0.541,
+    "tall_vegetation_m2": 368.5
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "seconds": 0.1,
+  "faces": 25,
+  "polygons": 30,
+  "polygon_vertices": 880,
+  "raw_boundary_vertices": 4974,
+  "simplification_max_face_area_change": 0.0151,
+  "vertex_kinds": {
+    "step": 72,
+    "crease": 289,
+    "junction": 7,
+    "single": 507,
+    "unresolved_junction": 5
+  },
+  "snap_move_m": {
+    "median": 0.047,
+    "max": 0.286
+  },
+  "crease_vertex_gap_m_max": 3.836930773104541e-13,
+  "unresolved_junction_gap_m": [
+    0.094,
+    0.316,
+    0.417,
+    0.097,
+    0.298
+  ],
+  "planarity_max_m": 1.4210854715202004e-14,
+  "model_vs_raster_label_agreement": 0.9968,
+  "model_vs_planar_raster_m": {
+    "median_abs": 0.0,
+    "p95_abs": 0.0
+  },
+  "model_vs_raw_dsm_m": {
+    "median_abs": 0.0284,
+    "rmse": 0.109
+  },
+  "objects_as_prisms": 11,
+  "mesh": {
+    "vertices": 2649,
+    "triangles": 1970,
+    "roof_area_3d_m2": 560.8
+  },
+  "origin_utm": [
+    640499.0,
+    5794758.300000001
+  ]
+}

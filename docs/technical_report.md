@@ -4,7 +4,7 @@
 **Output:** slope/aspect, a cleaned DSM, 25 planar roof faces, an obstruction map, a vector 3D roof model and a validated layout of **45 panels (19.35 kWp, ≈18,400 kWh/yr)**.
 **Run:** `python scripts/run_pipeline.py` (≈47 s). The detailed per-step log with all evidence is in [`progress.md`](progress.md).
 
-![overview](figures/overview.png)
+![overview](../outputs/step06_panels/overview.png)
 
 ## 1. Approach
 

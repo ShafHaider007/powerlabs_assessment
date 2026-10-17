@@ -1,0 +1,48 @@
+{
+  "seconds": 1.8,
+  "faces": 25,
+  "candidate_area_m2": 522.3,
+  "face_area_plan_m2": 457.3,
+  "face_area_3d_m2": 559.2,
+  "coverage_of_candidate": 0.875,
+  "unassigned_building_m2": 65.1,
+  "stages_segment_count": {
+    "grown": 52,
+    "merged": 29,
+    "assigned": 25
+  },
+  "face_rmse_clean_cm": {
+    "min": 1.19,
+    "p1": 1.197,
+    "p5": 1.234,
+    "median": 2.64,
+    "p95": 3.792,
+    "p99": 4.474,
+    "max": 4.68,
+    "count": 25
+  },
+  "face_robust_sigma_raw_cm": {
+    "min": 1.89,
+    "p1": 1.943,
+    "p5": 2.116,
+    "median": 4.08,
+    "p95": 6.648,
+    "p99": 7.799,
+    "max": 8.14,
+    "count": 25
+  },
+  "edges": {
+    "ridge": 7,
+    "hip": 21,
+    "valley": 13,
+    "step": 5
+  },
+  "crease_length_m": 149.7,
+  "crease_consistent_share": 0.809,
+  "crease_line_offset_m_median": 0.059,
+  "edge_restoration_cm_median": {
+    "ridge": 3.46,
+    "hip": 2.08,
+    "valley": -4.33
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "seconds": 0.6,
+  "objects": 58,
+  "by_class": {
+    "glass roof (lantern)": {
+      "count": 2,
+      "area_m2": 33.13
+    },
+    "vegetation": {
+      "count": 4,
+      "area_m2": 16.11
+    },
+    "dormer / structure": {
+      "count": 5,
+      "area_m2": 29.9
+    },
+    "chimney / small structure": {
+      "count": 7,
+      "area_m2": 3.83
+    },
+    "vent / small raised object": {
+      "count": 1,
+      "area_m2": 0.14
+    },
+    "dark anomaly (shadow or dark fitting)": {
+      "count": 21,
+      "area_m2": 2.58
+    },
+    "roof window / skylight / fitting": {
+      "count": 18,
+      "area_m2": 5.09
+    }
+  },
+  "raw_noise_on_faces_m": 0.0421,
+  "face_area_plan_m2": 457.3,
+  "obstruction_on_faces_plan_m2": 42.5,
+  "keepout_plan_m2": 86.8,
+  "usable_plan_m2": 370.4,
+  "usable_3d_m2": 458.6,
+  "usable_share_of_faces": 0.81,
+  "keepout_from_low_confidence_m2": 12.5,
+  "reference_recall": {
+    "found": 9,
+    "total": 9,
+    "objects": [
+      {
+        "name": "white vent",
+        "type": "fixture",
+        "found": true
+      },
+      {
+        "name": "dark flue",
+        "type": "fixture",
+        "found": true
+      },
+      {
+        "name": "square roof window",
+        "type": "window",
+        "found": true
+      },
+      {
+        "name": "double roof window",
+        "type": "window",
+        "found": true
+      },
+      {
+        "name": "west skylight",
+        "type": "window",
+        "found": true
+      },
+      {
+        "name": "SE skylight",
+        "type": "window",
+        "found": true
+      },
+      {
+        "name": "round chimney",
+        "type": "chimney",
+        "found": true
+      },
+      {
+        "name": "glass lantern",
+        "type": "glass",
+        "found": true
+      },
+      {
+        "name": "pots on NE dormer",
+        "type": "fixture",
+        "found": true
+      }
+    ]
+  }
+}

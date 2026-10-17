@@ -1,0 +1,47 @@
+{
+  "seconds": 0.9,
+  "site_lat_lon": [
+    52.28491,
+    -0.93965
+  ],
+  "sky": {
+    "annual_ghi_kwh_m2": 1051.1,
+    "diffuse_fraction": 0.485,
+    "optimum_tilt_deg": 42.0,
+    "optimum_azimuth_deg": 180.0,
+    "optimum_poa_kwh_m2": 1254.2
+  },
+  "panel": {
+    "size_m": [
+      1.134,
+      1.722
+    ],
+    "power_wp": 430
+  },
+  "faces_total": 25,
+  "faces_suitable": 10,
+  "panels": 45,
+  "kwp": 19.35,
+  "annual_kwh_estimate": 18396,
+  "specific_yield_kwh_per_kwp": 951.0,
+  "panel_area_m2": 87.9,
+  "suitable_usable_area_3d_m2": 270.8,
+  "strategy_totals": {
+    "grid/portrait": 31,
+    "grid/landscape": 39,
+    "rows/portrait": 34,
+    "rows/landscape": 41,
+    "dp/portrait": 34,
+    "dp/landscape": 43,
+    "dp_mixed": 45
+  },
+  "area_bound_panels": 89,
+  "placement_region_area_m2": 186.9,
+  "checks": {
+    "all_inside_region": true,
+    "overlaps": 0,
+    "min_gap_m": 0.028,
+    "min_edge_distance_m": 0.301,
+    "raster_violations": 0
+  }
+}

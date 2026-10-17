@@ -1,0 +1,98 @@
+[
+  {
+    "parameter": "colour_threshold",
+    "value": 4.0,
+    "default": false,
+    "recall": "9/9",
+    "objects": 71,
+    "usable_share": 0.774
+  },
+  {
+    "parameter": "colour_threshold",
+    "value": 5.0,
+    "default": true,
+    "recall": "9/9",
+    "objects": 58,
+    "usable_share": 0.81
+  },
+  {
+    "parameter": "colour_threshold",
+    "value": 6.0,
+    "default": false,
+    "recall": "7/9",
+    "objects": 38,
+    "usable_share": 0.838
+  },
+  {
+    "parameter": "colour_threshold",
+    "value": 7.0,
+    "default": false,
+    "recall": "6/9",
+    "objects": 30,
+    "usable_share": 0.85
+  },
+  {
+    "parameter": "min_height_m",
+    "value": 0.1,
+    "default": false,
+    "recall": "9/9",
+    "objects": 66,
+    "usable_share": 0.78
+  },
+  {
+    "parameter": "min_height_m",
+    "value": 0.15,
+    "default": true,
+    "recall": "9/9",
+    "objects": 58,
+    "usable_share": 0.81
+  },
+  {
+    "parameter": "min_height_m",
+    "value": 0.2,
+    "default": false,
+    "recall": "9/9",
+    "objects": 57,
+    "usable_share": 0.82
+  },
+  {
+    "parameter": "min_height_m",
+    "value": 0.3,
+    "default": false,
+    "recall": "9/9",
+    "objects": 60,
+    "usable_share": 0.832
+  },
+  {
+    "parameter": "buffer_m",
+    "value": 0.0,
+    "default": false,
+    "recall": "9/9",
+    "objects": 58,
+    "usable_share": 0.907
+  },
+  {
+    "parameter": "buffer_m",
+    "value": 0.2,
+    "default": false,
+    "recall": "9/9",
+    "objects": 58,
+    "usable_share": 0.854
+  },
+  {
+    "parameter": "buffer_m",
+    "value": 0.3,
+    "default": true,
+    "recall": "9/9",
+    "objects": 58,
+    "usable_share": 0.81
+  },
+  {
+    "parameter": "buffer_m",
+    "value": 0.5,
+    "default": false,
+    "recall": "9/9",
+    "objects": 58,
+    "usable_share": 0.729
+  }
+]
