@@ -568,7 +568,7 @@ The end-to-end test covers steps 1→4.
 | 6 | 37° | 224° | 0.95 | 30.7 | 10 | 15 | mixed | 0.92 |
 
 ### 6.5 Limitations
-- **No shading analysis.** The tree to the NW, the dormers and the chimneys will shade parts of the roof at times; a horizon/ray-cast model on the 3D mesh is the natural next step.
+- **Shading is not part of the placement.** A ray-casting check over the DSM with the hourly sun path estimates an annual loss of **11.5 % on average** (median 9.9 %, max 28.2 %; 2 panels > 20 %, on face 2 near the tree). This counts beam light only, the tile is limited, and DSM noise has a small effect. Next step: exclude areas above ~20 % loss and report shading-corrected energy.
 - The sky model is first-order (two states, isotropic diffuse). Energy is an estimate, not a yield certificate (PVGIS or measured data in production).
 - Rows are parallel to the eave only (industry practice). Other angles and free rectangle packing could fit more on hip triangles.
 - The setback is uniform. Real codes differ by edge type (e.g. larger at verges and ridges for wind and fire access).

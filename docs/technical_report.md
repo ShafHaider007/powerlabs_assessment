@@ -60,7 +60,11 @@ The pipeline has six steps. Each one is driven by **measurements of this data** 
 
 ## 5. Limitations and incomplete tasks
 
-- **Shading is not modelled.** The 24 m tree at the NW, the dormers and the chimneys will shade parts of the roof. Ray-casting on the 3D mesh over sun positions (the sun model already exists) is the natural next step.
+- **Shading is not part of the placement.** The hourly sun path is used only to rank faces by orientation and tilt. A separate ray-casting check estimated the effect of shading:
+  - Method: from each of the 45 panel centres, for every daylight hour of the year, march a ray toward the sun over the full-tile DSM; beam light is lost when any DSM height exceeds the ray.
+  - Result: annual energy loss is **11.5 % on average** (median 9.9 %, max 28.2 %). 22 panels lose > 10 % and 2 lose > 20 % (face 2, west wing, near the tree). The SW faces lose 15–16 % and the long SE face 5.9 %.
+  - Caveats: beam light only (diffuse sky obstruction ignored); the tile ends ~40 m from the house, so distant trees are missed; raw-DSM noise can add small false hits at grazing sun.
+  - Next step: exclude roof areas above ~20 % annual loss before packing and report shading-corrected energy (≈ 11 % below the current estimate).
 - **Energy is a first-order estimate:** two-state sky, isotropic diffuse. Production would use PVGIS or measured irradiance.
 - **Edges the data cannot resolve:**
   - Shadows vs dark fittings are not separable from one RGB image (handled conservatively).

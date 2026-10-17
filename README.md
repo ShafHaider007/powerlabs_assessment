@@ -14,7 +14,7 @@ solar panels on the usable roof area.
 | Obstructions | dormers, chimneys, vents, roof windows, skylights, glass lantern; **9/9** hand-labelled objects found |
 | Usable roof | 459 m² sloped (81 % of face area) after a 0.3 m keep-out around obstructions |
 | 3D model | vector model, neighbouring faces consistent to 4·10⁻¹³ m; PLY / GLB / GeoJSON / interactive HTML |
-| Panels | **45 × 430 Wp = 19.35 kWp**, ≈ 18,400 kWh/yr (first-order) on 6 suitable SE/SW faces |
+| Panels | **45 × 430 Wp = 19.35 kWp**, ≈ 18,400 kWh/yr (first-order, no shading; a ray-cast check estimates ≈ 11.5 % shading loss) on 6 suitable SE/SW faces |
 | Layout checks | 0 overlaps, gap ≥ 0.02 m, edge setback ≥ 0.30 m, 0 raster violations |
 | Quality | 110 tests; slope/aspect match GDAL to 4·10⁻⁶°; one command, ≈ 47 s |
 
