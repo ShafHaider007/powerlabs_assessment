@@ -25,7 +25,7 @@ solar panels on the usable roof area.
 | Python source | `src/roofsolar/` (package), `scripts/` (entry points), `tests/` |
 | README: setup, dependencies, how to run | this file: [Setup](#setup), [Requirements](#requirements), [Running the solution](#running-the-solution) |
 | Visual results: roof, obstructions, panels | [`outputs/`](outputs) (figures, GeoTIFFs, GeoJSON, 3D models; see [Outputs](#outputs)) |
-| Brief technical explanation | [`docs/technical_report.md`](docs/technical_report.md) (approach, algorithms, assumptions, limitations, incomplete tasks) |
+| Brief technical explanation | [`docs/technical_report.md`](docs/technical_report.md) (approach, algorithms, assumptions, limitations, incomplete tasks); PDF version: [`docs/Technical_Explanation_Shaf_Haider.pdf`](docs/Technical_Explanation_Shaf_Haider.pdf) |
 | Detailed evidence per step | [`docs/progress.md`](docs/progress.md) |
 
 ---
